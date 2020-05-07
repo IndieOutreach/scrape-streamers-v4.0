@@ -1,0 +1,5 @@
+{
+  "create-tables-mixer": [
+    "CREATE TABLE IF NOT EXISTS profiles (channel_id INT, user_id INT, token TEXT, user_avatar_url, TEXT, banner_url TEXT, vods_enabled BOOLEAN, description TEXT, language TEXT, date_joined INT, social TEXT, verified BOOLEAN, audience TEXT, PRIMARY KEY(channel_id));"
+  ]
+}
