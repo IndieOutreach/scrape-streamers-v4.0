@@ -22,8 +22,8 @@ class MixerDB():
         self.filepath = './data/mixer.db' # <- the filepath to the db file
         return
 
-    def create_tables(self):
 
+    def create_tables(self):
         f = json.load(open('./sql/create.json'))
         conn = sqlite3.connect(self.filepath)
         for command in f['create-tables-mixer']:
