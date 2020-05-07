@@ -22,7 +22,11 @@ from mixer_scraper import *
 def main():
     credentials = json.load(open('credentials.json'))
     mixer_db = MixerDB()
-    mixer_db.create_tables()
+    mixer_api = MixerAPI(credentials['mixer'])
+    channels = MixerChannels()
+    channels, page, timelogs = mixer_api.scrape_live_channels(MixerChannels(), 0)
+    for channel in channels.channels:
+        print(channel)
 
 # Run --------------------------------------------------------------------------
 
