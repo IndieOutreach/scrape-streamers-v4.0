@@ -53,8 +53,12 @@ class MixerStream():
     def get_game_id(self):
         if (self.is_valid()):
             return self.game_id
-        return False
+        return -1
 
+    def get_num_viewers(self):
+        if (self.is_valid()):
+            return self.current_viewers
+        return -1
 
 # MixerChannel -----------------------------------------------------------------
 
@@ -104,9 +108,7 @@ class MixerChannel():
         return self.current_stream_info.get_game_id()
 
     def get_num_current_viewers(self):
-        if (self.current_stream_info.is_valid()):
-            return self.current_stream_info.current_viewers
-        return False
+        return self.current_stream_info.get_num_viewers()
 
 
     def get_db_tuple(self, object_type):
@@ -167,6 +169,13 @@ class MixerChannel():
                 self.id,
                 self.date_scraped,
                 self.partnered
+            )
+        elif (object_type == 'livestream_snapshots'):
+            return (
+                self.id,
+                self.get_current_game_id(),
+                self.date_scraped,
+                self.get_num_current_viewers()
             )
 
 

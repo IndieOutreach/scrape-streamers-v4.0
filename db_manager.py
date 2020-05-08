@@ -107,6 +107,8 @@ class MixerDB():
 
 
     def insert_livestream_snapshot(self, conn, channel):
+        insert_command = self.commands['insert-livestream-snapshot-mixer']
+        conn.execute(insert_command, channel.get_db_tuple('livestream_snapshots'))
         return
 
 

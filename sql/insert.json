@@ -7,5 +7,8 @@
   ],
   "insert-time-series-mixer": [
     "INSERT INTO {table_name} (channel_id, date_scraped, value) VALUES (?, ?, ?);"
+  ],
+  "insert-livestream-snapshot-mixer": [
+    "INSERT INTO livestream_snapshots (channel_id, game_id, date_scraped, viewers) VALUES (?, ?, ?, ?);"
   ]
 }
