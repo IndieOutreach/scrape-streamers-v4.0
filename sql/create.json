@@ -8,6 +8,6 @@
     "CREATE TABLE IF NOT EXISTS partnered        (channel_id INT, date_scraped INT, value INT, PRIMARY KEY(channel_id, date_scraped), FOREIGN KEY(channel_id) REFERENCES channels(channel_id));",
     "CREATE TABLE IF NOT EXISTS recordings  (recording_id INT, channel_id INT, date_scraped INT, date_uploaded INT, game_id INT, views INT, duration DOUBLE, PRIMARY KEY(recording_id), FOREIGN KEY(channel_id) REFERENCES channels(channel_id));",
     "CREATE TABLE IF NOT EXISTS livestream_snapshots  (channel_id INT, game_id INT, date_scraped INT, date_ended INT, viewers INT, PRIMARY KEY(channel_id, date_scraped), FOREIGN KEY(channel_id) REFERENCES channels(channel_id));",
-    "CREATE TABLE IF NOT EXISTS compressed_livestreams (livestream_id INT, channel_id INT, game_id INT, date_started INT, date_ended INT, times_scraped INT, min_viewers INT, max_viewers INT, mean_viewers DOUBLE, std_dev_viewers DOUBLE, PRIMARY KEY(livestream_id), FOREIGN KEY(channel_id) REFERENCES channels(channel_id));"
+    "CREATE TABLE IF NOT EXISTS livestreams (livestream_id INT, channel_id INT, game_id INT, date_started INT, date_ended INT, times_scraped INT, min_viewers INT, max_viewers INT, mean_viewers DOUBLE, std_dev_viewers DOUBLE, PRIMARY KEY(livestream_id), FOREIGN KEY(channel_id) REFERENCES channels(channel_id));"
   ]
 }

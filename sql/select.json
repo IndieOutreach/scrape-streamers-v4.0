@@ -1,5 +1,8 @@
 {
   "get-all-channel-ids-mixer": [
     "SELECT channel_id FROM channels;"
+  ],
+  "get-most-recent-entry-for-channel-mixer": [
+    "SELECT * FROM {table_name} WHERE channel_id={channel_id} ORDER BY {date_column} DESC LIMIT 1;"
   ]
 }

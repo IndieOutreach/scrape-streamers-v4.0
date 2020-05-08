@@ -96,6 +96,7 @@ class MixerChannel():
         self.user_sparks         = obj['user']['sparks']
         self.user_experience     = obj['user']['experience']
         self.current_stream_info = MixerStream(obj)
+        self.date_scraped        = int(time.time())
 
 
 
@@ -120,7 +121,7 @@ class MixerChannel():
                 self.description,
                 self.language,
                 self.created_at,
-                int(time.time()), # <- date_first_scraped is assumed to be now if we are inserting
+                self.date_scraped,
                 json.dumps(self.socials),
                 self.user_verified,
                 self.audience
@@ -136,6 +137,36 @@ class MixerChannel():
                 json.dumps(self.socials),
                 self.user_verified,
                 self.audience
+            )
+        elif (object_type == 'followers'):
+            return (
+                self.id,
+                self.date_scraped,
+                self.num_followers
+            )
+        elif (object_type == 'sparks'):
+            return (
+                self.id,
+                self.date_scraped,
+                self.user_sparks
+            )
+        elif (object_type == 'experience'):
+            return (
+                self.id,
+                self.date_scraped,
+                self.user_experience
+            )
+        elif (object_type == 'lifetime_viewers'):
+            return (
+                self.id,
+                self.date_scraped,
+                self.viewers_total
+            )
+        elif (object_type == 'partnered'):
+            return (
+                self.id,
+                self.date_scraped,
+                self.partnered
             )
 
 
@@ -319,6 +350,20 @@ class MixerScraper():
             else:
                 print('update!')
                 self.db.update_channel(conn, channel)
+
+
+            # insert regular time-series data
+            self.db.insert_time_series_data(conn, channel, 'followers')
+            self.db.insert_time_series_data(conn, channel, 'lifetime_viewers')
+            self.db.insert_time_series_data(conn, channel, 'sparks')
+            self.db.insert_time_series_data(conn, channel, 'experience')
+
+            # insert value-sensitive time-series data
+            self.db.insert_time_series_data_by_value(conn, channel, 'partnered')
+
+            # insert livestreams snapshot
+            self.db.insert_livestream_snapshot(conn, channel)
+
 
 
         print(len(channels.channels))

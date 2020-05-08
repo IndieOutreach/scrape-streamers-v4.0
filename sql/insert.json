@@ -4,5 +4,8 @@
   ],
   "update-channel-mixer": [
     "UPDATE channels SET token=?, user_avatar_url=?, banner_url=?, vods_enabled=?, description=?, language=?, social=?, verified=?, audience=? WHERE channel_id={channel_id};"
+  ],
+  "insert-time-series-mixer": [
+    "INSERT INTO {table_name} (channel_id, date_scraped, value) VALUES (?, ?, ?);"
   ]
 }

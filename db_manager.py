@@ -59,17 +59,55 @@ class MixerDB():
 
     # Insert -------------------------------------------------------------------
 
-    #
+    # inserts a channel into the channels table
     def insert_new_channel(self, conn, channel):
         conn.execute(self.commands['insert-new-channel-mixer'], channel.get_db_tuple('insert-channel'))
         return
 
 
+    # updates an existing channel entry in the data
     def update_channel(self, conn, channel):
         command = self.commands['update-channel-mixer'].replace('{channel_id}', str(channel.id))
         conn.execute(command, channel.get_db_tuple('update-channel'))
         return
 
+
+    # adds data for a channel into: followers, lifetime_viewers, sparks, and experience tables
+    def insert_time_series_data(self, conn, channel, data_type):
+        insert_command = self.commands['insert-time-series-mixer'].replace('{table_name}', data_type)
+        conn.execute(insert_command, channel.get_db_tuple(data_type))
+        return
+
+
+    # adds data for a channel into data_type iff the value has changed
+    # -> typically used for partnered table
+    def insert_time_series_data_by_value(self, conn, channel, table_name):
+
+        if (table_name not in ['partnered']):
+            return
+
+        tuple_to_insert = channel.get_db_tuple(table_name)
+        new_value = tuple_to_insert[2]
+
+        # create sql statements
+        insert_command = self.commands['insert-time-series-mixer'].replace('{table_name}', table_name)
+        select_command = self.commands['get-most-recent-entry-for-channel-mixer']
+        select_command = select_command.replace('{table_name}', table_name)
+        select_command = select_command.replace('{date_column}', 'date_scraped')
+        select_command = select_command.replace('{channel_id}', str(channel.id))
+
+        # only insert this value if the value has changed
+        c = conn.execute(select_command)
+        row = c.fetchone()
+        if (row is None):
+            conn.execute(insert_command, tuple_to_insert)
+        else:
+            if (row[2] != new_value):
+                conn.execute(insert_command, tuple_to_insert)
+
+
+    def insert_livestream_snapshot(self, conn, channel):
+        return
 
 
     # Select -------------------------------------------------------------------
