@@ -10,9 +10,11 @@
 
 import sys
 import time
+import json
 import requests
 
-
+from logs import *
+from db_manager import *
 
 # ==============================================================================
 # Data Classes
@@ -106,22 +108,36 @@ class MixerChannel():
         return False
 
 
-    # dumps info about this channel into format for streamers_n.db.channel object
-    def to_db_object(self):
-        obj = {}
-        obj['channel_id']      = self.id
-        obj['user_id']         = self.user_id
-        obj['token']           = self.token
-        obj['user_avatar_url'] = self.user_avatar_url
-        obj['banner_url']      = self.banner_url
-        obj['vods_enabled']    = self.vods_enabled
-        obj['description']     = self.description
-        obj['language']        = self.language
-        obj['date_joined']     = self.created_at
-        obj['social']          = self.socials
-        obj['verified']        = self.user_verified
-        obj['audience']        = self.audience
-        return obj
+    def get_db_tuple(self, object_type):
+        if (object_type == 'insert-channel'):
+            return (
+                self.id,
+                self.user_id ,
+                self.token,
+                self.user_avatar_url,
+                self.banner_url,
+                self.vods_enabled,
+                self.description,
+                self.language,
+                self.created_at,
+                int(time.time()), # <- date_first_scraped is assumed to be now if we are inserting
+                json.dumps(self.socials),
+                self.user_verified,
+                self.audience
+            )
+        elif (object_type == 'update-channel'):
+            return (
+                self.token,
+                self.user_avatar_url,
+                self.banner_url,
+                self.vods_enabled,
+                self.description,
+                self.language,
+                json.dumps(self.socials),
+                self.user_verified,
+                self.audience
+            )
+
 
 # MixerChannels ----------------------------------------------------------------
 
@@ -130,36 +146,37 @@ class MixerChannels():
 
     def __init__(self):
         self.channels = {}
+        self.channels_with_zero_views = {}
 
     # creates a new MixerChannel object, given a dict from Mixer's API
     def add_from_api(self, info):
         channel = MixerChannel(info, 'api/channels')
         if (channel.is_valid()):
-            self.channels[channel.id] = channel
+            if (channel.get_num_current_viewers() == 0):
+                self.channels_with_zero_views[channel.id] = channel
+            else:
+                self.channels[channel.id] = channel
 
     def get(self, channel_id):
         if (channel_id in self.channels):
             return self.channels[channel_id]
+        elif (channel_id in self.channels_with_zero_views):
+            return self.channels_with_zero_views[channel_id]
         return False
 
     def get_channel_ids(self):
-        return self.channels.keys()
+        ids = []
+        for id in self.channels.keys():
+            ids.append(id)
+        for id in self.channels_with_zero_views.keys():
+            ids.append(id)
+        return ids
 
-    # returns channel IDs as grouped by scraper_id
-    def get_ids_in_batches(self, db_manager, id_manager):
-        batches = []
+    def get_channel_ids_with_viewers(self):
+        return list(self.channels.keys())
 
-        # initialize batch arrays
-        for i in range(db_manager.get_batch_from_scraper_id(id_manager.largest_scraper_id)):
-            batches.append([])
-
-        # add IDs to batches
-        for channel_id, channel_object in self.channels.items():
-            scraper_id = id_manager.get_scraper_id(channel_id)
-            batch_id = db_manager.get_batch_from_scraper_id(scraper_id)
-            batches[batch_id - 1].append(channel_id)
-
-        return batches
+    def get_channel_ids_with_no_viewers(self):
+        return list(self.channels_with_zero_views.keys())
 
 
 
@@ -242,4 +259,72 @@ class MixerAPI():
 class MixerScraper():
 
     def __init__(self):
+        credentials = json.load(open('credentials.json'))
+        self.mixer = MixerAPI(credentials['mixer'])
+        self.db = MixerDB()
+        self.timelog_actions = ['procedure_scrape_livestreams']
+        self.print_mode_on = False
+        return
+
+    def set_print_mode(self, v):
+        self.print_mode_on = v;
+
+    def __print(self, message):
+        if (self.print_mode_on == True):
+            print(message)
+
+
+    # Procedure: Scrape Livestreams --------------------------------------------
+
+    # scrapes all live channels currently on Mixer
+    # Updates the following tables:
+    # - channels               -> the main profile info about a streamer
+    # - livestream_snapshots   -> everytime this procedure runs, it adds a new record with data about the current game/viewership of a channel
+    #                             this means there will be multiple snapshots per livestream
+    #                             this data will be compiled into livestreams by a different procedure
+    # - followers              -> time-series data about number of followers
+    # - lifetime_viewers       -> time-series data about number of viewers a streamer has had on all of Mixer
+    # - sparks                 -> time-series data about the number of sparks a streamer has
+    # - experience             -> time-series data about amount of experience
+    # - partnered              -> time-series data about partnered status
+    def procedure_scrape_livestreams(self):
+
+        current_scrape_time = int(time.time())
+
+        # 1) scrape all live mixer channels
+        channels, page, timelogs = MixerChannels(), 0, TimeLogs(self.timelog_actions)
+        old_num_channels = 0
+        while(True):
+            self.__print(" - page:" + str(page))
+            channels, page, timelogs = self.mixer.scrape_live_channels(channels, page, timelogs)
+
+            # if we haven't scraped any new channels this round, break from the loop
+            if (old_num_channels == len(channels.get_channel_ids())):
+                break
+            old_num_channels = len(channels.get_channel_ids())
+
+
+        # 2) connect to the database and get a list of all the channels that are already in the db
+        conn = self.db.get_connection()
+        existing_ids = self.db.get_all_channel_ids(conn)
+
+        # 3) for each valid channel, save their info to tables
+        for channel_id in channels.get_channel_ids_with_viewers():
+            channel = channels.get(channel_id)
+
+            # insert or update channel
+            if (channel_id not in existing_ids):
+                print('insert!')
+                self.db.insert_new_channel(conn, channel)
+            else:
+                print('update!')
+                self.db.update_channel(conn, channel)
+
+
+        print(len(channels.channels))
+        print(len(channels.channels_with_zero_views))
+        print(len(channels.get_channel_ids()))
+
+        conn.commit()
+        conn.close()
         return

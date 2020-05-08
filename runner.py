@@ -20,13 +20,15 @@ from mixer_scraper import *
 # ==============================================================================
 
 def main():
-    credentials = json.load(open('credentials.json'))
+    # initialize databases if need be
     mixer_db = MixerDB()
-    mixer_api = MixerAPI(credentials['mixer'])
-    channels = MixerChannels()
-    channels, page, timelogs = mixer_api.scrape_live_channels(MixerChannels(), 0)
-    for channel in channels.channels:
-        print(channel)
+    mixer_db.create_tables()
+
+    # run scraper
+    mixer_scraper = MixerScraper()
+    mixer_scraper.set_print_mode(True)
+    mixer_scraper.procedure_scrape_livestreams()
+
 
 # Run --------------------------------------------------------------------------
 

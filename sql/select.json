@@ -1,0 +1,5 @@
+{
+  "get-all-channel-ids-mixer": [
+    "SELECT channel_id FROM channels;"
+  ]
+}
