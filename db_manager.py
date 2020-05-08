@@ -11,6 +11,7 @@
 
 import sys
 import json
+import time
 import sqlite3
 
 
@@ -123,6 +124,18 @@ class MixerDB():
         conn.execute(insert_command, game.to_db_tuple())
         return
 
+    # inserts a channel into no_recordings table
+    def insert_channel_with_no_recordings(self, conn, channel_id):
+        tuple_to_insert = (channel_id, int(time.time()))
+        insert_command = self.commands['insert-channel-no-recordings-mixer']
+        conn.execute(insert_command, tuple_to_insert)
+        return
+
+    def insert_recording_for_channel(self, conn, recording):
+        insert_command = self.commands['insert-recording-mixer']
+        conn.execute(insert_command, recording.to_db_tuple())
+        return
+
 
     # Select -------------------------------------------------------------------
 
@@ -140,6 +153,20 @@ class MixerDB():
         ids = {}
         for row in conn.execute(self.commands['get-all-game-ids-mixer']):
             ids[row[0]] = True
+        return ids
+
+
+    # returns a list of all channel IDs that IndieOutreach hasn't scraped for recordings yet
+    def get_channel_ids_that_need_recordings(self, conn):
+        ids = []
+        ids_to_ignore = {}
+        for row in conn.execute(self.commands['get-channel-ids-that-have-recordings-mixer']):
+            ids_to_ignore[row[0]] = True
+        for row in conn.execute(self.commands['get-channel-ids-with-no-recordings-mixer']):
+            ids_to_ignore[row[0]] = True
+        for row in conn.execute(self.commands['get-all-channel-ids-mixer']):
+            if (row[0] not in ids_to_ignore):
+                ids.append(row[0])
         return ids
 
 # ==============================================================================

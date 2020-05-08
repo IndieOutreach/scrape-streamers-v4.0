@@ -7,5 +7,11 @@
   ],
   "get-most-recent-entry-for-channel-mixer": [
     "SELECT * FROM {table_name} WHERE channel_id={channel_id} ORDER BY {date_column} DESC LIMIT 1;"
+  ],
+  "get-channel-ids-that-have-recordings-mixer": [
+    "SELECT DISTINCT(channel_id) FROM recordings;"
+  ],
+  "get-channel-ids-with-no-recordings-mixer": [
+    "SELECT channel_id FROM no_recordings;"
   ]
 }

@@ -10,6 +10,7 @@
 
 import sys
 import json
+import time
 
 from db_manager import *
 from mixer_scraper import *
@@ -27,8 +28,11 @@ def main():
     # run scraper
     mixer_scraper = MixerScraper()
     mixer_scraper.set_print_mode(True)
-    mixer_scraper.procedure_scrape_livestreams()
-
+    mixer_scraper.procedure_scrape_recordings()
+    return
+    while(True):
+        mixer_scraper.procedure_scrape_livestreams()
+        time.sleep(1 * 60 * 30) # <- 15 minutes
 
 # Run --------------------------------------------------------------------------
 

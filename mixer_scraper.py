@@ -113,9 +113,9 @@ class MixerChannel():
     def __init__(self, data, source):
         if (source == 'api/channels'):
             self.__load_from_api_channels_object(data)
+            self.valid = True
         else:
             self.valid = False
-        self.valid = True
 
 
     def is_valid(self):
@@ -133,6 +133,7 @@ class MixerChannel():
         self.partnered           = obj['partnered']
         self.has_videos          = obj['hasVod']
         self.vods_enabled        = obj['vodsEnabled']
+        self.has_vods            = obj['hasVod']
         self.banner_url          = obj['bannerUrl']
         self.created_at          = obj['createdAt']
         self.language            = obj['languageId']
@@ -167,6 +168,7 @@ class MixerChannel():
                 self.user_avatar_url,
                 self.banner_url,
                 self.vods_enabled,
+                self.has_vods,
                 self.description,
                 self.language,
                 self.created_at,
@@ -181,6 +183,7 @@ class MixerChannel():
                 self.user_avatar_url,
                 self.banner_url,
                 self.vods_enabled,
+                self.has_vods,
                 self.description,
                 self.language,
                 json.dumps(self.socials),
@@ -276,6 +279,68 @@ class MixerChannels():
 
 
 
+# Mixer Recording --------------------------------------------------------------
+
+class MixerRecording():
+
+    def __init__(self, obj, source):
+        if (source == 'api/recordings'):
+            self.__load_from_api_recordings_object(obj)
+            self.valid = True
+        else:
+            self.valid = False
+        return
+
+    def is_valid(self):
+        return self.valid == True
+
+    def __load_from_api_recordings_object(self, obj):
+        self.id = obj['id']
+        self.name = obj['name']
+        self.game_id = obj['typeId']
+        self.views = obj['viewsTotal']
+        self.duration = obj['duration']
+        self.channel_id = obj['channelId']
+        self.date_created = obj['createdAt']
+        self.date_scraped = int(time.time())
+
+
+    # converts a recording into a tuple that can be inserted into recordings table
+    def to_db_tuple(self):
+        return (
+            self.id,
+            self.channel_id,
+            self.game_id,
+            self.date_scraped,
+            self.date_created,
+            self.views,
+            self.duration
+        )
+
+
+# Mixer Recordings -------------------------------------------------------------
+
+# a collection of MixerRecording objects
+class MixerRecordings():
+
+    def __init__(self):
+        self.recordings = {}
+        return
+
+    def add_from_api(self, obj):
+        recording = MixerRecording(obj, 'api/recordings')
+        if (recording.is_valid()):
+            self.recordings[recording.id] = recording
+
+    def get_all_recording_ids(self):
+        return list(self.recordings.keys())
+
+    def get(self, recording_id):
+        if (recording_id in self.recordings):
+            return self.recordings[recording_id]
+        return False
+
+
 
 # ==============================================================================
 # Class MixerAPI
@@ -346,6 +411,25 @@ class MixerAPI():
         return channels, page + 1, timelogs
 
 
+    # scrapes a channel's recordings on Mixer
+    # this endpoint can be called from different pages
+    def scrape_recordings(self, channel_id, recordings, page=0, timelogs=False):
+
+        # prepare headers
+        params = self.__get_default_headers()
+        params['limit'] = 100
+        params['where'] = 'channelId:eq:' + str(channel_id)
+        params['page']  = page
+
+        # perform request
+        r, timelogs = self.__get('https://mixer.com/api/v1/recordings', params, timelogs, 'get_recordings')
+        if (r.status_code == 200):
+            for row in r.json():
+                recordings.add_from_api(row)
+
+        return recordings, page + 1, timelogs
+
+
 # ==============================================================================
 # Class: MixerScraper
 # ==============================================================================
@@ -357,7 +441,7 @@ class MixerScraper():
         credentials = json.load(open('credentials.json'))
         self.mixer = MixerAPI(credentials['mixer'])
         self.db = MixerDB()
-        self.timelog_actions = ['procedure_scrape_livestreams']
+        self.timelog_actions = ['procedure_scrape_livestreams', 'procedure_scrape_recordings']
         self.print_mode_on = False
         return
 
@@ -476,3 +560,58 @@ class MixerScraper():
                 num_viewers = max(0, channel.get_num_current_viewers())
                 stats[game_id].add(num_viewers)
         return stats
+
+
+
+    # Procedure: Scrape Recordings ---------------------------------------------
+
+    # gets a list of channels in the database that have recordings enabled but don't have any in the recordings table
+    def procedure_scrape_recordings(self):
+
+        # get list of channels we want to grab recordings for
+        # -> reduce total sample space to a batch of 500 channels
+        conn = self.db.get_connection()
+        all_channel_ids = self.db.get_channel_ids_that_need_recordings(conn)
+        ids_to_scrape = []
+        for i in range(min(len(all_channel_ids), 100)):
+            ids_to_scrape.append(all_channel_ids[i])
+        self.__print('channels available: ' + str(len(all_channel_ids)))
+        self.__print('channels being scraped this round: ' + str(len(ids_to_scrape)))
+
+        # for each channel, scrape all their recordings
+        num_with_recordings, num_no_recordings, num_recordings = 0, 0, 0
+        for channel_id in ids_to_scrape:
+            recordings = self.get_all_recordings_for_channel(channel_id)
+            if (len(recordings.get_all_recording_ids()) == 0):
+                self.db.insert_channel_with_no_recordings(conn, channel_id)
+                num_no_recordings += 1
+            else:
+                for recording_id in recordings.get_all_recording_ids():
+                    recording = recordings.get(recording_id)
+                    self.db.insert_recording_for_channel(conn, recording)
+                    num_recordings += 1
+                num_with_recordings += 1
+
+        self.__print('channels that had recordings: ' + str(num_with_recordings))
+        self.__print('channels that had no recordings: ' + str(num_no_recordings))
+        self.__print('total number of recordings scraped: ' + str(num_recordings))
+        conn.commit()
+        conn.close()
+        return
+
+
+    # calls the MixerAPI to get a MixerRecordings object containing all the recordings for a given channel
+    def get_all_recordings_for_channel(self, channel_id):
+
+        recordings, page, timelogs = MixerRecordings(), 0, TimeLogs(self.timelog_actions)
+        old_num_recordings = 0
+
+        while(True):
+            recordings, page, timelogs = self.mixer.scrape_recordings(channel_id, recordings, page, timelogs)
+
+            # if we haven't scraped any new recordings this round, break from the loop
+            if (old_num_recordings == len(recordings.get_all_recording_ids())):
+                break
+            old_num_recordings = len(recordings.get_all_recording_ids())
+
+        return recordings
