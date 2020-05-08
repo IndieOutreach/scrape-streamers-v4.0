@@ -2,6 +2,9 @@
   "get-all-channel-ids-mixer": [
     "SELECT channel_id FROM channels;"
   ],
+  "get-all-game-ids-mixer": [
+    "SELECT game_id FROM games;"
+  ],
   "get-most-recent-entry-for-channel-mixer": [
     "SELECT * FROM {table_name} WHERE channel_id={channel_id} ORDER BY {date_column} DESC LIMIT 1;"
   ]

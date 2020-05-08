@@ -15,10 +15,48 @@ import requests
 
 from logs import *
 from db_manager import *
+from stats_objects import *
 
 # ==============================================================================
 # Data Classes
 # ==============================================================================
+
+
+# MixerGame --------------------------------------------------------------------
+
+class MixerGame():
+
+    def __init__(self, data = None, source = 'api/channels'):
+        if (data == None ):
+            self.valid = False
+        elif (source == 'api/channels'):
+            self.__load_from_api_channels_object(data)
+        self.valid = True
+        return
+
+    def is_valid(self):
+        return self.valid == True
+
+    # loaded from data['type'] obj from the live channels endpoint of Mixer API
+    def __load_from_api_channels_object(self, data):
+        self.id             = data['id']
+        self.name           = data['name']
+        self.parent         = data['parent'] # <- type of content this is (usually Games)
+        self.cover_url      = data['coverUrl']
+        self.background_url = data['backgroundUrl']
+        self.description    = data['description']
+        self.total_viewers  = data['viewersCurrent']
+
+    def to_db_tuple(self):
+        return (
+            self.id,
+            self.name,
+            self.parent,
+            self.description,
+            self.cover_url,
+            self.background_url
+        )
+
 
 # MixerStream ------------------------------------------------------------------
 
@@ -49,6 +87,13 @@ class MixerStream():
         self.total_viewers_of_game = data['type']['viewersCurrent']
         self.total_streamers_of_game = data['type']['online']
         self.date = int(time.time())
+        self.game = MixerGame(data['type'], 'api/channels')
+
+    def get_game(self):
+        if (self.is_valid() and self.game.is_valid()):
+            return self.game
+        return False
+
 
     def get_game_id(self):
         if (self.is_valid()):
@@ -103,6 +148,8 @@ class MixerChannel():
         self.date_scraped        = int(time.time())
 
 
+    def get_current_game(self):
+        return self.current_stream_info.get_game()
 
     def get_current_game_id(self):
         return self.current_stream_info.get_game_id()
@@ -218,6 +265,14 @@ class MixerChannels():
     def get_channel_ids_with_no_viewers(self):
         return list(self.channels_with_zero_views.keys())
 
+    def get_all_games(self):
+        games = {}
+        for channel_id in self.get_channel_ids():
+            channel = self.get(channel_id)
+            game = channel.get_current_game()
+            if ((game != False) and (game.id not in games)):
+                games[game.id] = game
+        return games
 
 
 
@@ -275,7 +330,7 @@ class MixerAPI():
 
         # prepare headers
         params = self.__get_default_headers()
-        params['where'] = 'viewersCurrent:gt:2'
+        #params['where'] = 'viewersCurrent:gt:2'
         params['limit'] = 100
         params['order'] = 'viewersCurrent:DESC'
         params['page']  = page
@@ -346,20 +401,39 @@ class MixerScraper():
 
         # 2) connect to the database and get a list of all the channels that are already in the db
         conn = self.db.get_connection()
-        existing_ids = self.db.get_all_channel_ids(conn)
+        existing_channel_ids = self.db.get_all_channel_ids(conn)
+        existing_game_ids    = self.db.get_all_game_ids(conn)
 
-        # 3) for each valid channel, save their info to tables
+
+        # 3) Insert new games
+        num_new_games = 0
+        live_games = channels.get_all_games()
+        for game_id, game in live_games.items():
+            if (game.id not in existing_game_ids):
+                self.db.insert_game(conn, game)
+                num_new_games += 1
+
+
+        # 4) aggregate game data from all live channels and save stats about each game
+        platform_stats = self.get_platform_stats_for_games(channels)
+        for game_id, stats_object in platform_stats.items():
+            self.db.insert_game_snapshot(conn, stats_object)
+
+        self.__print('Games Seen: ' + str(len(platform_stats)))
+        self.__print('New Games: ' + str(num_new_games))
+
+        # 5) for each valid channel, save their info to tables
+        num_inserted, num_updated = 0, 0
         for channel_id in channels.get_channel_ids_with_viewers():
             channel = channels.get(channel_id)
 
             # insert or update channel
-            if (channel_id not in existing_ids):
-                print('insert!')
+            if (channel_id not in existing_channel_ids):
                 self.db.insert_new_channel(conn, channel)
+                num_inserted += 1
             else:
-                print('update!')
                 self.db.update_channel(conn, channel)
-
+                num_updated += 1
 
             # insert regular time-series data
             self.db.insert_time_series_data(conn, channel, 'followers')
@@ -374,11 +448,31 @@ class MixerScraper():
             self.db.insert_livestream_snapshot(conn, channel)
 
 
-
-        print(len(channels.channels))
-        print(len(channels.channels_with_zero_views))
-        print(len(channels.get_channel_ids()))
+        self.__print('New Channels: ' + str(num_inserted))
+        self.__print('Updated Channels: ' + str(num_updated))
 
         conn.commit()
         conn.close()
         return
+
+
+    # gets viewership statistics about games on Mixer
+    def get_platform_stats_for_games(self, channels):
+        stats = {}
+        for channel_id in channels.get_channel_ids():
+            channel = channels.get(channel_id)
+            game_id = channel.get_current_game_id()
+            if (game_id != -1):
+                if (game_id not in stats):
+                    stats[game_id] = StatsBucket(game_id)
+                    {
+                        'game_id': game_id,
+                        'num_channels': 0,
+                        'num_viewers': 0,
+                        'num_zero_viewers': 0
+                    }
+
+                # add this channel to stats about game
+                num_viewers = max(0, channel.get_num_current_viewers())
+                stats[game_id].add(num_viewers)
+        return stats

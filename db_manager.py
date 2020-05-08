@@ -111,6 +111,18 @@ class MixerDB():
         conn.execute(insert_command, channel.get_db_tuple('livestream_snapshots'))
         return
 
+    # assumes game_stats is a StatsBucket object
+    def insert_game_snapshot(self, conn, game_stats):
+        insert_command = self.commands['insert-game-snapshot-mixer']
+        conn.execute(insert_command, game_stats.to_db_tuple())
+        return
+
+    # assumes game is a MixerGame object
+    def insert_game(self, conn, game):
+        insert_command = self.commands['insert-game-mixer']
+        conn.execute(insert_command, game.to_db_tuple())
+        return
+
 
     # Select -------------------------------------------------------------------
 
@@ -122,6 +134,13 @@ class MixerDB():
             ids[row[0]] = True
         return ids
 
+
+    # returns a lookup table of game_ids for games that are already in database
+    def get_all_game_ids(self, conn):
+        ids = {}
+        for row in conn.execute(self.commands['get-all-game-ids-mixer']):
+            ids[row[0]] = True
+        return ids
 
 # ==============================================================================
 # Class: TwitchDBManager
