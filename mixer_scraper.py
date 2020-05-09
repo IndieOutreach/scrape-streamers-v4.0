@@ -39,7 +39,7 @@ class MixerGame():
 
     # loaded from data['type'] obj from the live channels endpoint of Mixer API
     def __load_from_api_channels_object(self, data):
-        self.id             = data['id']
+        self.id             = int(data['id'])
         self.name           = data['name']
         self.parent         = data['parent'] # <- type of content this is (usually Games)
         self.cover_url      = data['coverUrl']
@@ -80,14 +80,14 @@ class MixerStream():
 
 
     def __load_from_api_channels_object(self, data):
-        self.channel_id = data['id']
-        self.current_viewers = data['viewersCurrent']
-        self.game_id = data['type']['id']
-        self.game_name = data['type']['name']
-        self.total_viewers_of_game = data['type']['viewersCurrent']
+        self.channel_id              = int(data['id'])
+        self.current_viewers         = data['viewersCurrent']
+        self.game_id                 = int(data['type']['id'])
+        self.game_name               = data['type']['name']
+        self.total_viewers_of_game   = data['type']['viewersCurrent']
         self.total_streamers_of_game = data['type']['online']
-        self.date = int(time.time())
-        self.game = MixerGame(data['type'], 'api/channels')
+        self.date                    = int(time.time())
+        self.game                    = MixerGame(data['type'], 'api/channels')
 
     def get_game(self):
         if (self.is_valid() and self.game.is_valid()):
@@ -123,8 +123,8 @@ class MixerChannel():
 
 
     def __load_from_api_channels_object(self, obj):
-        self.id                  = obj['id']                   # <- ID of the channel
-        self.user_id             = obj['userId']               # <- ID of the user that owns this channel
+        self.id                  = int(obj['id'])                   # <- ID of the channel
+        self.user_id             = int(obj['userId'])               # <- ID of the user that owns this channel
         self.token               = obj['token']
         self.audience            = obj['audience']
         self.viewers_total       = obj['viewersTotal']
@@ -295,12 +295,12 @@ class MixerRecording():
         return self.valid == True
 
     def __load_from_api_recordings_object(self, obj):
-        self.id = obj['id']
-        self.name = obj['name']
-        self.game_id = obj['typeId']
-        self.views = obj['viewsTotal']
-        self.duration = obj['duration']
-        self.channel_id = obj['channelId']
+        self.id           = int(obj['id'])
+        self.name         = obj['name']
+        self.game_id      = int(obj['typeId']) if (obj['typeId'] != None) else -1
+        self.views        = obj['viewsTotal']
+        self.duration     = obj['duration']
+        self.channel_id   = int(obj['channelId'])
         self.date_created = obj['createdAt']
         self.date_scraped = int(time.time())
 
@@ -352,11 +352,11 @@ class MixerAPI():
         self.client_id = credentials['client_id']
         self.rate_limit_bucket = {
             'channel-search': 20,
-            'recordings': 1000         # <- this wasn't provided by Mixer's documentation
+            'general': 1000         # <- this wasn't provided by Mixer's documentation,
         }
         self.rate_limit_times = {
             'channel-search': 5 / 20,  # 20 requests per 5 seconds -> allowed 1 every 0.25 seconds
-            'recordings': 60 / 1000    # same as the 'Global' rate limit
+            'general': 60 / 1000       # same as the 'Global' rate limit
         }
 
 
@@ -417,7 +417,7 @@ class MixerAPI():
     # this endpoint can be called from different pages
     def scrape_recordings(self, channel_id, recordings, page=0, timelogs=False):
 
-        self.__sleep_before_executing('recordings')
+        self.__sleep_before_executing('general')
 
         # prepare headers
         params = self.__get_default_headers()
@@ -431,8 +431,24 @@ class MixerAPI():
             for row in r.json():
                 recordings.add_from_api(row)
 
-        self.__sleep_after_executing(r.headers, 'recordings')
+        self.__sleep_after_executing(r.headers, 'general')
         return recordings, page + 1, timelogs
+
+
+    # gets a specified game
+    def scrape_game(self, game_id, timelogs = False):
+        self.__sleep_before_executing('general')
+
+        # prepare headers
+        game = False
+        params = self.__get_default_headers()
+        url = 'https://mixer.com/api/v1/types/' + str(game_id)
+        r, timelogs = self.__get(url, params, timelogs, 'get_recordings')
+        if (r.status_code == 200):
+            game = MixerGame(r.json(), 'api/channels')
+
+        self.__sleep_after_executing(r.headers, 'general')
+        return game
 
 
 # ==============================================================================
@@ -573,8 +589,8 @@ class MixerScraper():
     # gets a list of channels in the database that have recordings enabled but don't have any in the recordings table
     def procedure_scrape_recordings(self):
 
-        # get list of channels we want to grab recordings for
-        # -> reduce total sample space to a batch of 500 channels
+        # 1) get list of channels we want to grab recordings for
+        #   -> reduce total sample space to a batch of 500 channels
         conn = self.db.get_connection()
         all_channel_ids = self.db.get_channel_ids_that_need_recordings(conn)
         ids_to_scrape = []
@@ -583,23 +599,44 @@ class MixerScraper():
         self.__print('channels available: ' + str(len(all_channel_ids)))
         self.__print('channels being scraped this round: ' + str(len(ids_to_scrape)))
 
-        # for each channel, scrape all their recordings
-        num_with_recordings, num_no_recordings, num_recordings = 0, 0, 0
+
+        # 2) get a lookup table of all game_ids that are already in our dataset
+        #   -> we will use this so we know when to add new games found in the scraped recordings
+        known_game_ids = self.db.get_all_game_ids(conn)
+
+
+        # 3) for each channel, scrape all their recordings
+        stats = {'num_channels_with_recordings': 0, 'num_channels_no_recordings': 0, 'num_recordings': 0, 'num_games_added': 0}
         for channel_id in ids_to_scrape:
+
+            # 3.a) Grab all the recordings for this channel
             recordings = self.get_all_recordings_for_channel(channel_id)
+
+            # 3.b) If the channel has no recordings, log that
             if (len(recordings.get_all_recording_ids()) == 0):
                 self.db.insert_channel_with_no_recordings(conn, channel_id)
-                num_no_recordings += 1
+                stats['num_channels_no_recordings'] += 1
+
             else:
+                # 3.c) If the channel does have recordings, save them to the database
+                #       -> if a recording has a game we haven't seen before, scrape that first
                 for recording_id in recordings.get_all_recording_ids():
                     recording = recordings.get(recording_id)
-                    self.db.insert_recording_for_channel(conn, recording)
-                    num_recordings += 1
-                num_with_recordings += 1
+                    if ((recording.game_id not in known_game_ids) and (recording.game_id != -1)):
+                        game = self.mixer.scrape_game(recording.game_id)
+                        if (game):
+                            self.db.insert_game(conn, game)
+                            known_game_ids[game.id] = True
+                            stats['num_games_added'] += 1
 
-        self.__print('channels that had recordings: ' + str(num_with_recordings))
-        self.__print('channels that had no recordings: ' + str(num_no_recordings))
-        self.__print('total number of recordings scraped: ' + str(num_recordings))
+                    self.db.insert_recording_for_channel(conn, recording)
+                    stats['num_recordings'] += 1
+                stats['num_channels_with_recordings'] += 1
+
+        # print stats
+        for key, value in stats.items():
+            print(key + ": " + str(value))
+
         conn.commit()
         conn.close()
         return

@@ -12,7 +12,7 @@
     "INSERT INTO livestream_snapshots (channel_id, game_id, date_scraped, viewers) VALUES (?, ?, ?, ?);"
   ],
   "insert-game-mixer": [
-    "INSERT INTO games (game_id, game_name, parent, description, cover_url, background_url) VALUES (?, ?, ?, ?, ?, ?);"
+    "INSERT OR REPLACE INTO games (game_id, game_name, parent, description, cover_url, background_url) VALUES (?, ?, ?, ?, ?, ?);"
   ],
   "insert-game-snapshot-mixer": [
     "INSERT INTO game_snapshots (game_id, date_scraped, num_channels, num_zero, total_viewers, min_viewers, max_viewers, median_viewers, mean_viewers, std_dev_viewers) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"

@@ -22,8 +22,8 @@ from mixer_scraper import *
 
 __sleep = {
     'main_thread':        1 * 60 * 30,   # <- run every 30 minutes
-    'scrape_livestreams': 1 * 60 * 15,   # <- run every 15 minutes
-    'scrape_recordings':  1 * 60 * 10    # <- run every 10 minutes
+    'scrape_livestreams': 1 * 60 * 1,   # <- run every 15 minutes
+    'scrape_recordings':  1 * 60 * 1    # <- run every 10 minutes
 }
 
 
