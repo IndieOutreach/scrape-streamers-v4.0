@@ -351,10 +351,12 @@ class MixerAPI():
     def __init__(self, credentials):
         self.client_id = credentials['client_id']
         self.rate_limit_bucket = {
-            'channel-search': 20
+            'channel-search': 20,
+            'recordings': 1000         # <- this wasn't provided by Mixer's documentation
         }
         self.rate_limit_times = {
-            'channel-search': 5 / 20 # 20 requests per 5 seconds -> allowed 1 every 0.25 seconds
+            'channel-search': 5 / 20,  # 20 requests per 5 seconds -> allowed 1 every 0.25 seconds
+            'recordings': 60 / 1000    # same as the 'Global' rate limit
         }
 
 
@@ -415,6 +417,8 @@ class MixerAPI():
     # this endpoint can be called from different pages
     def scrape_recordings(self, channel_id, recordings, page=0, timelogs=False):
 
+        self.__sleep_before_executing('recordings')
+
         # prepare headers
         params = self.__get_default_headers()
         params['limit'] = 100
@@ -427,6 +431,7 @@ class MixerAPI():
             for row in r.json():
                 recordings.add_from_api(row)
 
+        self.__sleep_after_executing(r.headers, 'recordings')
         return recordings, page + 1, timelogs
 
 
