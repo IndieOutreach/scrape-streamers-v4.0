@@ -46,7 +46,7 @@ class MixerDB():
     # Connect ------------------------------------------------------------------
 
     def get_connection(self):
-        return sqlite3.connect(self.filepath, timeout = 1 * 60 * 15) # <- 15 minutes 
+        return sqlite3.connect(self.filepath, timeout = 1 * 60 * 15) # <- 15 minutes
 
     # Create -------------------------------------------------------------------
 
@@ -136,6 +136,11 @@ class MixerDB():
         conn.execute(insert_command, recording.to_db_tuple())
         return
 
+    def insert_logs(self, conn, log_name, time_started, timelog_str, stats_str):
+        insert_command = self.commands['insert-log-mixer']
+        tuple_to_insert = (log_name, time_started, int(time.time()), timelog_str, stats_str, )
+        conn.execute(insert_command, tuple_to_insert)
+        return
 
     # Select -------------------------------------------------------------------
 

@@ -443,12 +443,12 @@ class MixerAPI():
         game = False
         params = self.__get_default_headers()
         url = 'https://mixer.com/api/v1/types/' + str(game_id)
-        r, timelogs = self.__get(url, params, timelogs, 'get_recordings')
+        r, timelogs = self.__get(url, params, timelogs, 'get_game')
         if (r.status_code == 200):
             game = MixerGame(r.json(), 'api/channels')
 
         self.__sleep_after_executing(r.headers, 'general')
-        return game
+        return game, timelogs
 
 
 # ==============================================================================
@@ -462,7 +462,7 @@ class MixerScraper():
         credentials = json.load(open('credentials.json'))
         self.mixer = MixerAPI(credentials['mixer'])
         self.db = MixerDB()
-        self.timelog_actions = ['procedure_scrape_livestreams', 'procedure_scrape_recordings']
+        self.timelog_actions = []
         self.print_mode_on = False
         return
 
@@ -489,7 +489,10 @@ class MixerScraper():
     # - partnered              -> time-series data about partnered status
     def procedure_scrape_livestreams(self):
 
-        current_scrape_time = int(time.time())
+        time_started = int(time.time())
+        stats = {'num_new_games': 0, 'num_channels_inserted': 0, 'num_channels_updated': 0}
+
+        # Phase 1: Scrape all live channels and games --------------------------
 
         # 1) scrape all live mixer channels
         channels, page, timelogs = MixerChannels(), 0, TimeLogs(self.timelog_actions)
@@ -503,42 +506,42 @@ class MixerScraper():
                 break
             old_num_channels = len(channels.get_channel_ids())
 
+        # get games from live channels and aggregate stats about that data
+        live_games = channels.get_all_games()
+        platform_stats = self.get_platform_stats_for_games(channels)
 
-        # 2) connect to the database and get a list of all the channels that are already in the db
+
+        # Phase 2: Insert Games Data into DB -----------------------------------
+
+        # connect to the database and get a list of all the channels that are already in the db
         conn = self.db.get_connection()
         existing_channel_ids = self.db.get_all_channel_ids(conn)
         existing_game_ids    = self.db.get_all_game_ids(conn)
 
-
-        # 3) Insert new games
-        num_new_games = 0
-        live_games = channels.get_all_games()
+        # Insert new games
         for game_id, game in live_games.items():
             if (game.id not in existing_game_ids):
                 self.db.insert_game(conn, game)
-                num_new_games += 1
+                stats['num_new_games'] += 1
 
 
         # 4) aggregate game data from all live channels and save stats about each game
-        platform_stats = self.get_platform_stats_for_games(channels)
         for game_id, stats_object in platform_stats.items():
             self.db.insert_game_snapshot(conn, stats_object)
 
-        self.__print('Games Seen: ' + str(len(platform_stats)))
-        self.__print('New Games: ' + str(num_new_games))
+        # Phase 3: Insert Channels Data into DB --------------------------------
 
-        # 5) for each valid channel, save their info to tables
-        num_inserted, num_updated = 0, 0
+        # for each valid channel, save their info to tables
         for channel_id in channels.get_channel_ids_with_viewers():
             channel = channels.get(channel_id)
 
             # insert or update channel
             if (channel_id not in existing_channel_ids):
                 self.db.insert_new_channel(conn, channel)
-                num_inserted += 1
+                stats['num_channels_inserted'] += 1
             else:
                 self.db.update_channel(conn, channel)
-                num_updated += 1
+                stats['num_channels_updated'] += 1
 
             # insert regular time-series data
             self.db.insert_time_series_data(conn, channel, 'followers')
@@ -553,11 +556,17 @@ class MixerScraper():
             self.db.insert_livestream_snapshot(conn, channel)
 
 
-        self.__print('New Channels: ' + str(num_inserted))
-        self.__print('Updated Channels: ' + str(num_updated))
+        # Phase 4: Save Logs ---------------------------------------------------
+
+        timelog_str = json.dumps(timelogs.get_stats_from_logs())
+        stats_str   = json.dumps(stats)
+        self.db.insert_logs(conn, 'scrape-livestreams', time_started, timelog_str, stats_str)
 
         conn.commit()
         conn.close()
+
+        for k, v in stats.items():
+            self.__print(k + ': ' + str(v))
         return
 
 
@@ -590,6 +599,8 @@ class MixerScraper():
     # This procedure is broken into 3 parts in order to minimize non-writing time spent holding the database lock
     def procedure_scrape_recordings(self):
 
+        time_started = int(time.time())
+
         # Phase 1: Get info from DB about what needs to be scraped -------------
 
         # 1.a) get list of channels we want to grab recordings for
@@ -613,18 +624,19 @@ class MixerScraper():
 
         recordings_by_channels = {} # lookup table { channel_id -> MixerRecordings() }
         new_games = {}              # lookup table { game_id -> MixerGame() }
+        timelogs = TimeLogs(self.timelog_actions)
 
         for channel_id in ids_to_scrape:
 
             # Grab all the recordings for this channel
-            recordings = self.get_all_recordings_for_channel(channel_id)
+            recordings, timelogs = self.get_all_recordings_for_channel(channel_id, timelogs)
             recordings_by_channels[channel_id] = recordings
 
             # add any new games that are in these recordings
             for recording_id in recordings.get_all_recording_ids():
                 recording = recordings.get(recording_id)
                 if ((recording.game_id not in known_game_ids) and (recording.game_id != -1)):
-                    game = self.mixer.scrape_game(recording.game_id)
+                    game, timelogs = self.mixer.scrape_game(recording.game_id, timelogs)
                     if (game != False):
                         new_games[game.id]      = game
                         known_game_ids[game.id] = True
@@ -654,19 +666,27 @@ class MixerScraper():
                 self.db.insert_channel_with_no_recordings(conn, channel_id)
                 stats['num_channels_no_recordings'] += 1
 
+
+        # Phase 4: Write logs to database --------------------------------------
+
+        timelog_str = json.dumps(timelogs.get_stats_from_logs())
+        stats_str   = json.dumps(stats)
+        self.db.insert_logs(conn, 'scrape-recordings', time_started, timelog_str, stats_str)
+
         conn.commit()
         conn.close()
 
         # print stats
         for key, value in stats.items():
             self.__print(key + ": " + str(value))
+
         return
 
 
     # calls the MixerAPI to get a MixerRecordings object containing all the recordings for a given channel
-    def get_all_recordings_for_channel(self, channel_id):
+    def get_all_recordings_for_channel(self, channel_id, timelogs):
 
-        recordings, page, timelogs = MixerRecordings(), 0, TimeLogs(self.timelog_actions)
+        recordings, page = MixerRecordings(), 0
         old_num_recordings = 0
 
         while(True):
@@ -677,4 +697,4 @@ class MixerScraper():
                 break
             old_num_recordings = len(recordings.get_all_recording_ids())
 
-        return recordings
+        return recordings, timelogs

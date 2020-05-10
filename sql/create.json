@@ -11,6 +11,7 @@
     "CREATE TABLE IF NOT EXISTS no_recordings (channel_id INT, date_scraped INT, PRIMARY KEY(channel_id), FOREIGN KEY(channel_id) REFERENCES channels(channel_id));",
     "CREATE TABLE IF NOT EXISTS livestream_snapshots  (channel_id INT, game_id INT, date_scraped INT, viewers INT, PRIMARY KEY(channel_id, date_scraped), FOREIGN KEY(channel_id) REFERENCES channels(channel_id), FOREIGN KEY(game_id) REFERENCES games(game_id));",
     "CREATE TABLE IF NOT EXISTS livestreams (livestream_id INT, channel_id INT, game_id INT, date_started INT, date_ended INT, times_scraped INT, min_viewers INT, max_viewers INT, mean_viewers DOUBLE, std_dev_viewers DOUBLE, PRIMARY KEY(livestream_id), FOREIGN KEY(channel_id) REFERENCES channels(channel_id), FOREIGN KEY(game_id) REFERENCES games(game_id));",
-    "CREATE TABLE IF NOT EXISTS game_snapshots (game_id INT, date_scraped INT, num_channels INT, num_zero INT, total_viewers INT, min_viewers INT, max_viewers INT, median_viewers INT, mean_viewers DOUBLE, std_dev_viewers DOUBLE, PRIMARY KEY(game_id, date_scraped), FOREIGN KEY(game_id) REFERENCES games(game_id));"
+    "CREATE TABLE IF NOT EXISTS game_snapshots (game_id INT, date_scraped INT, num_channels INT, num_zero INT, total_viewers INT, min_viewers INT, max_viewers INT, median_viewers INT, mean_viewers DOUBLE, std_dev_viewers DOUBLE, PRIMARY KEY(game_id, date_scraped), FOREIGN KEY(game_id) REFERENCES games(game_id));",
+    "CREATE TABLE IF NOT EXISTS logs (log_name TEXT, date_started INT, date_ended INT, timelogs TEXT, stats TEXT, PRIMARY KEY(log_name, date_started));"
   ]
 }
