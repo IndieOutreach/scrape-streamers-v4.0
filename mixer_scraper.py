@@ -587,9 +587,12 @@ class MixerScraper():
     # Procedure: Scrape Recordings ---------------------------------------------
 
     # gets a list of channels in the database that have recordings enabled but don't have any in the recordings table
+    # This procedure is broken into 3 parts in order to minimize non-writing time spent holding the database lock
     def procedure_scrape_recordings(self):
 
-        # 1) get list of channels we want to grab recordings for
+        # Phase 1: Get info from DB about what needs to be scraped -------------
+
+        # 1.a) get list of channels we want to grab recordings for
         #   -> reduce total sample space to a batch of 500 channels
         conn = self.db.get_connection()
         all_channel_ids = self.db.get_channel_ids_that_need_recordings(conn)
@@ -600,45 +603,63 @@ class MixerScraper():
         self.__print('channels being scraped this round: ' + str(len(ids_to_scrape)))
 
 
-        # 2) get a lookup table of all game_ids that are already in our dataset
+        # 1.b) get a lookup table of all game_ids that are already in our dataset
         #   -> we will use this so we know when to add new games found in the scraped recordings
         known_game_ids = self.db.get_all_game_ids(conn)
+        conn.close()
 
 
-        # 3) for each channel, scrape all their recordings
-        stats = {'num_channels_with_recordings': 0, 'num_channels_no_recordings': 0, 'num_recordings': 0, 'num_games_added': 0}
+        # Phase 2: Use API to scrape all recordings and games ------------------
+
+        recordings_by_channels = {} # lookup table { channel_id -> MixerRecordings() }
+        new_games = {}              # lookup table { game_id -> MixerGame() }
+
         for channel_id in ids_to_scrape:
 
-            # 3.a) Grab all the recordings for this channel
+            # Grab all the recordings for this channel
             recordings = self.get_all_recordings_for_channel(channel_id)
+            recordings_by_channels[channel_id] = recordings
 
-            # 3.b) If the channel has no recordings, log that
-            if (len(recordings.get_all_recording_ids()) == 0):
+            # add any new games that are in these recordings
+            for recording_id in recordings.get_all_recording_ids():
+                recording = recordings.get(recording_id)
+                if ((recording.game_id not in known_game_ids) and (recording.game_id != -1)):
+                    game = self.mixer.scrape_game(recording.game_id)
+                    if (game != False):
+                        new_games[game.id]      = game
+                        known_game_ids[game.id] = True
+
+
+
+        # Phase 3: Write recordings and games to the database ------------------
+
+        stats = {'num_channels_with_recordings': 0, 'num_channels_no_recordings': 0, 'num_recordings': 0, 'num_games_added': 0}
+
+        conn = self.db.get_connection()
+
+        # save games
+        for game_id, game in new_games.items():
+            stats['num_games_added'] += 1
+            self.db.insert_game(conn, game)
+
+        # save recordings
+        for channel_id, recordings in recordings_by_channels.items():
+            recording_ids = recordings.get_all_recording_ids()
+            if (len(recording_ids) > 0):
+                stats['num_channels_with_recordings'] += 1
+                for id in recording_ids:
+                    stats['num_recordings'] += 1
+                    self.db.insert_recording_for_channel(conn, recordings.get(id))
+            else:
                 self.db.insert_channel_with_no_recordings(conn, channel_id)
                 stats['num_channels_no_recordings'] += 1
 
-            else:
-                # 3.c) If the channel does have recordings, save them to the database
-                #       -> if a recording has a game we haven't seen before, scrape that first
-                for recording_id in recordings.get_all_recording_ids():
-                    recording = recordings.get(recording_id)
-                    if ((recording.game_id not in known_game_ids) and (recording.game_id != -1)):
-                        game = self.mixer.scrape_game(recording.game_id)
-                        if (game):
-                            self.db.insert_game(conn, game)
-                            known_game_ids[game.id] = True
-                            stats['num_games_added'] += 1
-
-                    self.db.insert_recording_for_channel(conn, recording)
-                    stats['num_recordings'] += 1
-                stats['num_channels_with_recordings'] += 1
+        conn.commit()
+        conn.close()
 
         # print stats
         for key, value in stats.items():
             self.__print(key + ": " + str(value))
-
-        conn.commit()
-        conn.close()
         return
 
 
