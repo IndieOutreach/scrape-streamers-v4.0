@@ -46,7 +46,7 @@ class MixerDB():
     # Connect ------------------------------------------------------------------
 
     def get_connection(self):
-        return sqlite3.connect(self.filepath)
+        return sqlite3.connect(self.filepath, timeout = 1 * 60 * 15) # <- 15 minutes 
 
     # Create -------------------------------------------------------------------
 

@@ -635,7 +635,7 @@ class MixerScraper():
 
         # print stats
         for key, value in stats.items():
-            print(key + ": " + str(value))
+            self.__print(key + ": " + str(value))
 
         conn.commit()
         conn.close()
