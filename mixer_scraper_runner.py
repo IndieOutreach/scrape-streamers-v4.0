@@ -8,10 +8,12 @@
 
 # Imports ----------------------------------------------------------------------
 
+import os
 import sys
 import json
 import time
 import signal
+import atexit
 import datetime
 import threading
 
@@ -25,7 +27,7 @@ from mixer_scraper import *
 __sleep_period = 30
 __sleep = {
     'scrape-livestreams': 2 * 15,   # <- run every 15 minutes
-    'scrape-recordings':  2 * 5     # <- run every 10 minutes
+    'scrape-recordings':  2 * 5     # <- run every 5 minutes
 }
 
 
@@ -36,6 +38,10 @@ thread_functions = {}     # <- lookup table of {thread_id: function to run for t
 thread_status    = {}     # <- lookup table of {thread_id: status}, if status == 'end', then the thread is flagged to terminate
 __thread_id_livestreams = 'Scrape Livestreams'
 __thread_id_recordings  = 'Scrape Recordings'
+
+
+# for keeping track of process IDs so only 1 version of the scraper can ever run
+__pid_filepath = "./tmp/mixer_scraper.pid"
 
 
 # ==============================================================================
@@ -109,9 +115,34 @@ def stop_scraper(sig, frame):
     print('shut down complete!\n')
     sys.exit(0)
 
+# on exit, we want to remove the ./tmp/mixer_scraper.pid so other programs can restart it
+def delete_saved_pid():
+    print('deleting!')
+    os.unlink(__pid_filepath)
+    return
+
+
+# checks to see if program is already running and quits if so
+def check_if_program_already_running():
+    pid = str(os.getpid())
+    if (os.path.isfile(__pid_filepath)):
+        print("The scraper is already running in another process. ")
+        return True
+
+    f = open(__pid_filepath, 'w')
+    f.write(pid)
+    f.close()
+    return False
+
+
 
 # main function
 def run():
+
+    # because this runs on a cron job, make sure two instances of the scraper can't be active at the same time
+    if check_if_program_already_running():
+        sys.exit(0)
+    atexit.register(delete_saved_pid)
 
     # initialize databases if need be
     mixer_db = MixerDB()
@@ -121,14 +152,17 @@ def run():
     create_worker_thread(__thread_id_livestreams)
     create_worker_thread(__thread_id_recordings)
 
+    # set main thread to wait for termination
     signal.signal(signal.SIGINT, stop_scraper)
     signal.pause()
+
 
 # Run --------------------------------------------------------------------------
 
 # initialize thread starting functions
 thread_functions[__thread_id_recordings]  = thread_scrape_recordings
 thread_functions[__thread_id_livestreams] = thread_scrape_livestreams
+
 
 if (__name__ == '__main__'):
     run()
