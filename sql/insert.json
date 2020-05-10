@@ -1,9 +1,9 @@
 {
   "insert-new-channel-mixer": [
-    "INSERT INTO channels (channel_id, user_id, token, user_avatar_url, banner_url, vods_enabled, has_vods, description, language, date_joined, date_first_scraped, social, verified, audience) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"
+    "INSERT INTO channels (channel_id, user_id, token, user_avatar_url, banner_url, vods_enabled, has_vods, description, user_bio, language, date_joined, date_first_scraped, social, verified, audience) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"
   ],
   "update-channel-mixer": [
-    "UPDATE channels SET token=?, user_avatar_url=?, banner_url=?, vods_enabled=?, has_vods=?, description=?, language=?, social=?, verified=?, audience=? WHERE channel_id={channel_id};"
+    "UPDATE channels SET token=?, user_avatar_url=?, banner_url=?, vods_enabled=?, has_vods=?, description=?, user_bio=?, language=?, social=?, verified=?, audience=? WHERE channel_id={channel_id};"
   ],
   "insert-time-series-mixer": [
     "INSERT INTO {table_name} (channel_id, date_scraped, value) VALUES (?, ?, ?);"

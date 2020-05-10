@@ -1,6 +1,6 @@
 {
   "create-tables-mixer": [
-    "CREATE TABLE IF NOT EXISTS channels (channel_id INT, user_id INT, token TEXT, user_avatar_url TEXT, banner_url TEXT, vods_enabled BOOLEAN, has_vods BOOLEAN, description TEXT, language TEXT, date_joined INT, date_first_scraped INT, social TEXT, verified BOOLEAN, audience TEXT, PRIMARY KEY(channel_id));",
+    "CREATE TABLE IF NOT EXISTS channels (channel_id INT, user_id INT, token TEXT, user_avatar_url TEXT, banner_url TEXT, vods_enabled BOOLEAN, has_vods BOOLEAN, description TEXT, user_bio TEXT, language TEXT, date_joined INT, date_first_scraped INT, social TEXT, verified BOOLEAN, audience TEXT, PRIMARY KEY(channel_id));",
     "CREATE TABLE IF NOT EXISTS followers        (channel_id INT, date_scraped INT, value INT, PRIMARY KEY(channel_id, date_scraped), FOREIGN KEY(channel_id) REFERENCES channels(channel_id));",
     "CREATE TABLE IF NOT EXISTS lifetime_viewers (channel_id INT, date_scraped INT, value INT, PRIMARY KEY(channel_id, date_scraped), FOREIGN KEY(channel_id) REFERENCES channels(channel_id));",
     "CREATE TABLE IF NOT EXISTS sparks           (channel_id INT, date_scraped INT, value INT, PRIMARY KEY(channel_id, date_scraped), FOREIGN KEY(channel_id) REFERENCES channels(channel_id));",

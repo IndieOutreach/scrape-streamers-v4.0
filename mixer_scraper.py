@@ -145,6 +145,7 @@ class MixerChannel():
         self.user_verified       = obj['user']['verified']
         self.user_sparks         = obj['user']['sparks']
         self.user_experience     = obj['user']['experience']
+        self.user_bio            = obj['user']['bio']
         self.current_stream_info = MixerStream(obj)
         self.date_scraped        = int(time.time())
 
@@ -170,6 +171,7 @@ class MixerChannel():
                 self.vods_enabled,
                 self.has_vods,
                 self.description,
+                self.user_bio,
                 self.language,
                 self.created_at,
                 self.date_scraped,
@@ -185,6 +187,7 @@ class MixerChannel():
                 self.vods_enabled,
                 self.has_vods,
                 self.description,
+                self.user_bio,
                 self.language,
                 json.dumps(self.socials),
                 self.user_verified,
