@@ -154,6 +154,7 @@ def run():
 
     # set main thread to wait for termination
     signal.signal(signal.SIGINT, stop_scraper)
+    signal.signal(signal.SIGTERM, stop_scraper)
     signal.pause()
 
 
