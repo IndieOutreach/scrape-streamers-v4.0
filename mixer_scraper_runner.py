@@ -117,8 +117,8 @@ def stop_scraper(sig, frame):
 
 # on exit, we want to remove the ./tmp/mixer_scraper.pid so other programs can restart it
 def delete_saved_pid():
-    print('deleting!')
     os.unlink(__pid_filepath)
+    print('removed ./tmp/mixer_scraper.pid')
     return
 
 
@@ -127,6 +127,9 @@ def check_if_program_already_running():
     pid = str(os.getpid())
     if (os.path.isfile(__pid_filepath)):
         print("The scraper is already running in another process. ")
+        with open(__pid_filepath) as f:
+            for line in f:
+                print('pid:', line)
         return True
 
     f = open(__pid_filepath, 'w')
