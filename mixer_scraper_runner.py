@@ -14,10 +14,12 @@ import json
 import time
 import signal
 import atexit
+import argparse
 import datetime
 import threading
 
 from db_manager import *
+from twilio_sms import *
 from mixer_scraper import *
 
 
@@ -31,7 +33,7 @@ __sleep = {
 }
 
 
-# Threading Related Variabels --------------------------------------------------
+# Threading Related Variables --------------------------------------------------
 
 worker_threads   = {}     # <- lookup table of {thread_id: thread}
 thread_functions = {}     # <- lookup table of {thread_id: function to run for thread }
@@ -40,8 +42,12 @@ __thread_id_livestreams = 'Scrape Livestreams'
 __thread_id_recordings  = 'Scrape Recordings'
 
 
+# Scraper Health Variables -----------------------------------------------------
+
 # for keeping track of process IDs so only 1 version of the scraper can ever run
 __pid_filepath = "./tmp/mixer_scraper.pid"
+
+sms = TwilioSMS()
 
 
 # ==============================================================================
@@ -115,10 +121,15 @@ def stop_scraper(sig, frame):
     print('shut down complete!\n')
     sys.exit(0)
 
-# on exit, we want to remove the ./tmp/mixer_scraper.pid so other programs can restart it
-def delete_saved_pid():
+# function that gets run on exit
+def on_program_shutdown():
+    # remove the ./tmp/mixer_scraper.pid so other programs can restart it
     os.unlink(__pid_filepath)
     print('removed ./tmp/mixer_scraper.pid')
+
+    # let developer know the scraper stopped
+    message = 'IndieOutreach Mixer Scraper stopped running at {} on {}'.format(datetime.datetime.now().time(), datetime.date.today())
+    sms.send(message)
     return
 
 
@@ -142,10 +153,18 @@ def check_if_program_already_running():
 # main function
 def run():
 
+    # get command line arguments -> production mode
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-t', '--twilio', dest='twilio', action='store_true', help='If true, server will send text messages to the number specified in credentials on scraper start and termination.')
+    args = parser.parse_args()
+    if (args.twilio):
+        sms.set_mode(True)
+
+
     # because this runs on a cron job, make sure two instances of the scraper can't be active at the same time
     if check_if_program_already_running():
         sys.exit(0)
-    atexit.register(delete_saved_pid)
+    atexit.register(on_program_shutdown)
 
     # initialize databases if need be
     mixer_db = MixerDB()
@@ -154,6 +173,10 @@ def run():
     # start threads on scraping procedures
     create_worker_thread(__thread_id_livestreams)
     create_worker_thread(__thread_id_recordings)
+
+    # send message to developer telling them server has started
+    message = "IndieOutreach Mixer Scraper started running at {} on {}".format(datetime.datetime.now().time(), datetime.date.today())
+    sms.send(message)
 
     # set main thread to wait for termination
     signal.signal(signal.SIGINT, stop_scraper)
