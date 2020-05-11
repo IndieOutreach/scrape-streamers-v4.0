@@ -36,9 +36,9 @@ class MixerDB():
                     commands[command_name] = command_list[0]
             return commands
 
-        commands = __load_from_file({}, './sql/create.json')
-        commands = __load_from_file(commands, './sql/insert.json')
-        commands = __load_from_file(commands, './sql/select.json')
+        commands = __load_from_file({}, './sql/mixer_create.json')
+        commands = __load_from_file(commands, './sql/mixer_insert.json')
+        commands = __load_from_file(commands, './sql/mixer_select.json')
         return commands
 
 
