@@ -232,9 +232,10 @@ class TwitchScraper():
 
         # 2.b) Scrape for all *new* games
 
+
         # 2.c) Scrape for all *new* twitch tags
 
-         
+
         tags = livestreams.get_all_tag_ids()
         print(len(tags))
         return

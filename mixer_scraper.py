@@ -454,6 +454,19 @@ class MixerAPI():
         return game, timelogs
 
 
+    def scrape_channel(self, channel_id, timelogs = False):
+        self.__sleep_before_executing('channel-search')
+        channel = False
+        params = self.__get_default_headers()
+        url = 'https://mixer.com/api/v1/channels/' + str(channel_id)
+        r, timelogs = self.__get(url, params, timelogs, 'get_channel')
+        if (r.status_code == 200):
+            channel = MixerChannel(r.json(), 'api/channels')
+        self.__sleep_after_executing(r.headers, 'channel-search')
+        return channel, timelogs
+
+
+
 # ==============================================================================
 # Class: MixerScraper
 # ==============================================================================
@@ -701,3 +714,72 @@ class MixerScraper():
             old_num_recordings = len(recordings.get_all_recording_ids())
 
         return recordings, timelogs
+
+
+    # Procedure: Scrape Inactive -----------------------------------------------
+
+    def procedure_scrape_inactive(self):
+
+        time_started = int(time.time())
+        stats = {'num_channels_updated': 0, 'num_channels_total': 0}
+
+        # Phase 1: Get all "inactive" channels from DB -------------------------
+
+        self.__print('Get all innactive channels')
+        conn = self.db.get_connection()
+        all_inactive_ids = self.db.get_inactive_channel_ids(conn)
+        conn.close()
+
+        # filter list of IDs to be a reasonably sized subset
+        inactive_ids = []
+        stats['num_channels_total'] = len(all_inactive_ids)
+        for i, id in enumerate(all_inactive_ids):
+            if (i > 1000):
+                break
+            inactive_ids.append(id)
+
+
+
+        # Phase 2: Search for updated channel info -----------------------------
+
+        self.__print('scraping channel info for channels')
+        num_channels = len(inactive_ids)
+        channels = {} # <- store channels in a lookup table (instead of a MixerChannels collection)
+        timelogs = TimeLogs(self.timelog_actions)
+        for i, id in enumerate(inactive_ids):
+            self.__print('->' + str(i) + '/' + str(num_channels))
+            channel, timelogs = self.mixer.scrape_channel(id, timelogs)
+            if (channel != False):
+                channels[channel.id] = channel
+
+
+        # Phase 3: Update channel info in the database -------------------------
+
+        self.__print('Saving channel info to database')
+        conn = self.db.get_connection()
+        for channel_id, channel in channels.items():
+
+            stats['num_channels_updated'] += 1
+
+            # update channel
+            self.db.update_channel(conn, channel)
+
+            # insert regular time-series data
+            self.db.insert_time_series_data(conn, channel, 'followers')
+            self.db.insert_time_series_data(conn, channel, 'lifetime_viewers')
+            self.db.insert_time_series_data(conn, channel, 'sparks')
+            self.db.insert_time_series_data(conn, channel, 'experience')
+
+            # insert value-sensitive time-series data
+            self.db.insert_time_series_data_by_value(conn, channel, 'partnered')
+
+        # Phase 4: Write logs to the database ----------------------------------
+
+        timelog_str = json.dumps(timelogs.get_stats_from_logs())
+        stats_str   = json.dumps(stats)
+        self.db.insert_logs(conn, 'scrape-inactive', time_started, timelog_str, stats_str)
+
+        conn.commit()
+        conn.close()
+        self.__print('Done')
+        return

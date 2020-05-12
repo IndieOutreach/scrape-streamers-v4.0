@@ -29,7 +29,8 @@ from mixer_scraper import *
 __sleep_period = 30
 __sleep = {
     'scrape-livestreams': 2 * 15,   # <- run every 15 minutes
-    'scrape-recordings':  2 * 5     # <- run every 5 minutes
+    'scrape-recordings':  2 * 5,    # <- run every 5 minutes
+    'scrape-inactive':    2 * 5     # <- run every 15 minutes
 }
 
 
@@ -40,6 +41,7 @@ thread_functions = {}     # <- lookup table of {thread_id: function to run for t
 thread_status    = {}     # <- lookup table of {thread_id: status}, if status == 'end', then the thread is flagged to terminate
 __thread_id_livestreams = 'Scrape Livestreams'
 __thread_id_recordings  = 'Scrape Recordings'
+__thread_id_inactive    = 'Scrape Inactive'
 
 
 # Scraper Health Variables -----------------------------------------------------
@@ -76,6 +78,19 @@ def thread_scrape_recordings(thread_id):
             if (thread_status[thread_id] == 'end'):
                 return
             time.sleep(__sleep_period)
+
+
+def thread_scrape_inactive(thread_id):
+    mixer_scraper = MixerScraper()
+    while(True):
+        print_from_thread(thread_id, "starting work")
+        mixer_scraper.procedure_scrape_inactive()
+        print_from_thread(thread_id, "sleeping")
+        for i in range(__sleep['scrape-inactive']):
+            if (thread_status[thread_id] == 'end'):
+                return
+            time.sleep(__sleep_period)
+
 
 # ==============================================================================
 # Main
@@ -173,6 +188,7 @@ def run():
     # start threads on scraping procedures
     create_worker_thread(__thread_id_livestreams)
     create_worker_thread(__thread_id_recordings)
+    create_worker_thread(__thread_id_inactive)
 
     # send message to developer telling them server has started
     message = "IndieOutreach Mixer Scraper started running at {} on {}".format(datetime.datetime.now().time(), datetime.date.today())
@@ -184,12 +200,14 @@ def run():
     signal.pause()
 
 
+
+
 # Run --------------------------------------------------------------------------
 
 # initialize thread starting functions
 thread_functions[__thread_id_recordings]  = thread_scrape_recordings
 thread_functions[__thread_id_livestreams] = thread_scrape_livestreams
-
+thread_functions[__thread_id_inactive]    = thread_scrape_inactive
 
 if (__name__ == '__main__'):
     run()

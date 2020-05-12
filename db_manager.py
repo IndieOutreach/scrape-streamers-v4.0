@@ -174,6 +174,17 @@ class MixerDB():
                 ids.append(row[0])
         return ids
 
+    # returns a list of channel IDs that haven't been active in the last 24 hours
+    def get_inactive_channel_ids(self, conn):
+        ids = []
+        time_cutoff = int(time.time()) - (1 * 60 * 60 * 24) # <- 24 hours ago
+        select_command = self.commands['get-channel-ids-whose-most-recent-entry-was-before']
+        select_command = select_command.replace('{table_name}', 'followers')
+        select_command = select_command.replace('{date}', str(time_cutoff))
+        for row in conn.execute(select_command):
+            ids.append(row[0])
+        return ids
+
 # ==============================================================================
 # Class: TwitchDBManager
 # ==============================================================================
