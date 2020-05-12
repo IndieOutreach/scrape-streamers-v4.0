@@ -64,6 +64,8 @@ class TwitchLivestreams():
         return
 
 
+    # Get ----------------------------------------------------------------------
+
     def get(self, id):
         if (id in self.livestreams):
             return self.livestreams[id]
@@ -74,15 +76,19 @@ class TwitchLivestreams():
     def get_num_livestreams(self):
         return len(self.livestreams) + len(self.livestreams_no_viewers)
 
+    def get_livestream_ids_with_more_than_n_views(self, n):
+        ids = []
+        for id, livestream in self.livestreams.items():
+            if (livestream.viewer_count > n):
+                ids.append(id)
+        return ids
 
-    def add_from_api(self, obj):
-        livestream = TwitchLivestream(obj, 'api/livestreams')
-        if (livestream.is_valid()):
-            if (livestream.viewer_count > 0):
-                self.livestreams[livestream.id] = livestream
-            else:
-                self.livestreams_no_viewers[livestream.id] = livestream
-        return
+    def get_streamer_ids_with_more_than_n_views(self, n):
+        ids = []
+        for id, livestream in self.livestreams.items():
+            if (livestream.viewer_count > n):
+                ids.append(livestream.user_id)
+        return ids
 
     # returns all tag_ids in a list
     def get_all_tag_ids(self):
@@ -99,6 +105,142 @@ class TwitchLivestreams():
         ids_lookup = get_tags_from_livestreams(ids_lookup, self.livestreams_no_viewers)
         return list(ids_lookup.keys())
 
+    # returns all game_ids in livestreams as a list
+    def get_all_game_ids(self):
+        ids = {}
+        def add_games_from_livestreams(lookup, livestreams):
+            for livestream_id, livestream in livestreams.items():
+                game_id = livestream.game_id
+                if ((game_id != -1) and (game_id not in lookup)):
+                    lookup[game_id] = True
+            return lookup
+        ids = add_games_from_livestreams(ids, self.livestreams)
+        ids = add_games_from_livestreams(ids, self.livestreams_no_viewers)
+        return list(ids.keys())
+
+    # Insert -------------------------------------------------------------------
+
+    def add_from_api(self, obj):
+        livestream = TwitchLivestream(obj, 'api/livestreams')
+        if (livestream.is_valid()):
+            if (livestream.viewer_count > 0):
+                self.livestreams[livestream.id] = livestream
+            else:
+                self.livestreams_no_viewers[livestream.id] = livestream
+        return
+
+
+# Twitch Game ------------------------------------------------------------------
+
+class TwitchGame():
+
+    def __init__(self, data, source):
+        if (source == 'api/games'):
+            self.__load_from_api_games_object(data)
+            self.valid = True
+        else:
+            self.valid = False
+        return
+
+    def is_valid(self):
+        return self.valid == True
+
+    def __load_from_api_games_object(self, data):
+        self.id          = data['id']
+        self.name        = data['name']
+        self.box_art_url = data['box_art_url']
+        return
+
+# TwitchGames ------------------------------------------------------------------
+
+class TwitchGames():
+
+    def __init__(self):
+        self.games = {}
+        return
+
+    def add_from_api(self, obj):
+        game = TwitchGame(obj, 'api/games')
+        if (game.is_valid()):
+            self.games[game.id] = game
+
+
+# TwitchTag --------------------------------------------------------------------
+
+class TwitchTag():
+
+    def __init__(self, data, source):
+        if (source == 'api/tags'):
+            self.__load_from_api_tags_object(data)
+            self.valid = True
+        else:
+            self.valid = False
+        return
+
+    def is_valid(self):
+        return self.valid
+
+    def __load_from_api_tags_object(self, obj):
+        self.id                        = obj['tag_id']
+        self.is_auto                   = obj['is_auto']
+        self.localization_names        = obj['localization_names']
+        self.localization_descriptions = obj['localization_descriptions']
+        return
+
+
+# TwitchTags -------------------------------------------------------------------
+
+class TwitchTags():
+
+    def __init__(self):
+        self.tags = {}
+        return
+
+    def add_from_api(self, obj):
+        tag = TwitchTag(obj, 'api/tags')
+        if (tag.is_valid()):
+            self.tags[tag.id] = tag
+
+
+# TwitchStreamer ---------------------------------------------------------------
+
+class TwitchStreamer():
+
+    def __init__(self, data, source):
+        if (source == 'api/users'):
+            self.__load_from_api_users_object(data)
+            self.valid = True
+        else:
+            self.valid = False
+        return
+
+    def is_valid(self):
+        return self.valid == True
+
+    def __load_from_api_users_object(self, obj):
+        self.id                = int(obj['id'])
+        self.login             = obj['login']
+        self.display_name      = obj['display_name']
+        self.admin_type        = obj['type']             # <- staff, admin, global_mod, or ""
+        self.broadcaster_type  = obj['broadcaster_type'] # <- partner, affiliate, or ""
+        self.description       = obj['description']
+        self.view_count        = int(obj['view_count'])
+        self.profile_image_url = obj['profile_image_url']
+        self.offline_image_url = obj['offline_image_url']
+        return
+
+# TwitchStreamers --------------------------------------------------------------
+
+class TwitchStreamers():
+
+    def __init__(self):
+        self.streamers = {}
+        return
+
+    def add_from_api(self, obj):
+        streamer = TwitchStreamer(obj, 'api/users')
+        if (streamer.is_valid()):
+            self.streamers[streamer.id] = streamer
 
 # ==============================================================================
 # Class: TwitchAPI
@@ -151,6 +293,15 @@ class TwitchAPI():
             time.sleep(min_sleep)
 
 
+    # takes in a list of items and converts them into a list of tuples
+    # [v1, v2, ... ] -> [(key, v1), (key, v2), ... ]
+    # this is useful for passing in batches of info through headers
+    def __format_tuple_params(self, items, key):
+        params = []
+        for v in items:
+            params.append((key, v))
+        return params
+
     # Scraping -----------------------------------------------------------------
 
     # scrapes Twitch for a page of 100 livestreams
@@ -179,7 +330,39 @@ class TwitchAPI():
         self.__sleep(r.headers)
         return livestreams, cursor, timelogs
 
+    # given an array of game_ids, return a TwitchGames object with games
+    def scrape_games(self, game_ids, games, timelogs):
+        params = self.__format_tuple_params(game_ids, 'id')
+        r, timelogs = self.__get('https://api.twitch.tv/helix/games', params, self.__get_helix_headers(), timelogs, 'get_games')
+        if (r.status_code == 200):
+            results = r.json()
+            for row in results['data']:
+                games.add_from_api(row)
+        self.__sleep(r.headers)
+        return games, timelogs
 
+    # given an array of tag_ids, return a TwitchTags object with tags
+    def scrape_tags(self, tag_ids, tags, timelogs):
+        params = self.__format_tuple_params(tag_ids, 'tag_id')
+        r, timelogs = self.__get('https://api.twitch.tv/helix/tags/streams', params, self.__get_helix_headers(), timelogs, 'get_tags')
+        if (r.status_code == 200):
+            results = r.json()
+            for row in results['data']:
+                tags.add_from_api(row)
+        self.__sleep(r.headers)
+        return tags, timelogs
+
+
+    # given an array of user_ids, return a TwitchStreamers object with streamer profiles
+    def scrape_users(self, user_ids, users, timelogs):
+        params = self.__format_tuple_params(user_ids, 'id')
+        r, timelogs = self.__get('https://api.twitch.tv/helix/users', params, self.__get_helix_headers(), timelogs, 'get_users')
+        if (r.status_code == 200):
+            results = r.json()
+            for row in results['data']:
+                users.add_from_api(row)
+        self.__sleep(r.headers)
+        return users, timelogs
 
 # ==============================================================================
 # Class: TwitchScraper
@@ -228,14 +411,52 @@ class TwitchScraper():
                 break
             num_old_livestreams = num_livestreams
             page_num += 1
+            break
         self.__print('Scraping Livestreams complete!\n')
 
-        # 2.b) Scrape for all *new* games
 
+        # 2.b) Scrape for all *new* games
+        new_game_ids = []
+        for game_id in livestreams.get_all_game_ids():
+            if (game_id not in known_game_ids):
+                new_game_ids.append(game_id)
+
+        new_games = TwitchGames()
+        for batch_of_ids in self.__break_list_into_batches(new_game_ids, 100):
+            new_games, timelogs = self.twitch.scrape_games(batch_of_ids, new_games, timelogs)
 
         # 2.c) Scrape for all *new* twitch tags
+        new_tag_ids = []
+        for tag_id in livestreams.get_all_tag_ids():
+            if (tag_id not in known_tag_ids):
+                new_tag_ids.append(tag_id)
+
+        new_tags = TwitchTags()
+        for batch_of_ids in self.__break_list_into_batches(new_tag_ids, 100):
+            new_tags, timelogs = self.twitch.scrape_tags(batch_of_ids, new_tags, timelogs)
 
 
-        tags = livestreams.get_all_tag_ids()
-        print(len(tags))
+        # 2.d) Scrape all user profiles for streamers that have enough viewers
+        streamers = TwitchStreamers()
+        for batch_of_ids in self.__break_list_into_batches(livestreams.get_streamer_ids_with_more_than_n_views(3), 100):
+            streamers, timelogs = self.twitch.scrape_users(batch_of_ids, streamers, timelogs)
+
+        # Phase 3: Calculate Stats about Games on Twitch -----------------------
+
+        # Phase 4: Commit everything to the database ---------------------------
+
+        # Phase 5: Save logs to the database -----------------------------------
+
         return
+
+
+
+    # takes in a list of datapoints and breaks it into a list of lists, each size <= batch_size
+    def __break_list_into_batches(self, list_of_data, batch_size):
+        batches = []
+        for i, v in enumerate(list_of_data):
+            batch_index = int(i / batch_size)
+            if (batch_index >= len(batches)):
+                batches.append([])
+            batches[batch_index].append(v)
+        return batches
