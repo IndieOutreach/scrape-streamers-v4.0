@@ -17,6 +17,7 @@ import requests
 
 from logs import *
 from db_manager import *
+from stats_objects import *
 
 # ==============================================================================
 # Classes: Twitch<Objects>
@@ -72,6 +73,14 @@ class TwitchLivestreams():
         elif (id in self.livestreams_no_viewers):
             return self.livestreams_no_viewers[id]
         return False
+
+    def get_all_livestream_ids(self):
+        ids = []
+        for id in self.livestreams:
+            ids.append(id)
+        for id in self.livestreams_no_viewers:
+            ids.append(id)
+        return ids
 
     def get_num_livestreams(self):
         return len(self.livestreams) + len(self.livestreams_no_viewers)
@@ -425,6 +434,9 @@ class TwitchScraper():
         for batch_of_ids in self.__break_list_into_batches(new_game_ids, 100):
             new_games, timelogs = self.twitch.scrape_games(batch_of_ids, new_games, timelogs)
 
+        # get stats about all games
+        game_platform_stats = self.get_platform_stats_for_games(livestreams)
+
         # 2.c) Scrape for all *new* twitch tags
         new_tag_ids = []
         for tag_id in livestreams.get_all_tag_ids():
@@ -441,19 +453,27 @@ class TwitchScraper():
         for batch_of_ids in self.__break_list_into_batches(livestreams.get_streamer_ids_with_more_than_n_views(3), 100):
             streamers, timelogs = self.twitch.scrape_users(batch_of_ids, streamers, timelogs)
 
-        # Phase 3: Calculate Stats about Games on Twitch -----------------------
 
-        # for each game,
-        # - num_channels, num_zero, total_viewers, min_viewers, max_viewers, median_viewers, mean_viewers, std_dev_viewers
+        # Phase 3: Commit everything to the database ---------------------------
 
-
-        # Phase 4: Commit everything to the database ---------------------------
-
-        # Phase 5: Save logs to the database -----------------------------------
+        # Phase 4: Save logs to the database -----------------------------------
 
         return
 
 
+    # get viewership statistics about games on Twitch
+    # creates a lookup {game_id -> StatsBucket }
+    def get_platform_stats_for_games(self, livestreams):
+        stats = {}
+        for livestream_id in livestreams.get_all_livestream_ids():
+            livestream = livestreams.get(livestream_id)
+            game_id = livestream.game_id
+            if (game_id != -1):
+                if (game_id not in stats):
+                    stats[game_id] = StatsBucket(game_id)
+                num_viewers = max(0, livestream.viewer_count)
+                stats[game_id].add(num_viewers)
+        return stats
 
     # takes in a list of datapoints and breaks it into a list of lists, each size <= batch_size
     def __break_list_into_batches(self, list_of_data, batch_size):
