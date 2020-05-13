@@ -595,12 +595,6 @@ class MixerScraper():
             if (game_id != -1):
                 if (game_id not in stats):
                     stats[game_id] = StatsBucket(game_id)
-                    {
-                        'game_id': game_id,
-                        'num_channels': 0,
-                        'num_viewers': 0,
-                        'num_zero_viewers': 0
-                    }
 
                 # add this channel to stats about game
                 num_viewers = max(0, channel.get_num_current_viewers())

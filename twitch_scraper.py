@@ -443,6 +443,10 @@ class TwitchScraper():
 
         # Phase 3: Calculate Stats about Games on Twitch -----------------------
 
+        # for each game,
+        # - num_channels, num_zero, total_viewers, min_viewers, max_viewers, median_viewers, mean_viewers, std_dev_viewers
+
+
         # Phase 4: Commit everything to the database ---------------------------
 
         # Phase 5: Save logs to the database -----------------------------------
