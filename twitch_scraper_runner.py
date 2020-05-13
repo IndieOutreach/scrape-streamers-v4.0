@@ -10,6 +10,7 @@
 
 import sys
 
+from db_manager import *
 from twitch_scraper import *
 
 # ==============================================================================
@@ -17,6 +18,10 @@ from twitch_scraper import *
 # ==============================================================================
 
 def run():
+
+    twitch_db = TwitchDB()
+    twitch_db.create_tables()
+
     scraper = TwitchScraper()
     scraper.set_print_mode(True)
     scraper.procedure_scrape_livestreams()

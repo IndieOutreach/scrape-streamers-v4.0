@@ -190,5 +190,40 @@ class MixerDB():
 # ==============================================================================
 
 class TwitchDB():
+
     def __init__(self):
+        self.filepath = './data/twitch.db' # <- the filepath to the db file
+        self.commands = self.load_commands()
         return
+
+    def load_commands(self):
+
+        def __load_from_file(commands, filepath):
+            f = json.load(open(filepath))
+            for command_name, command_list in f.items():
+                if (len(command_list) > 1):
+                    commands[command_name] = command_list
+                else:
+                    commands[command_name] = command_list[0]
+            return commands
+
+        commands = __load_from_file({}, './sql/twitch_create.json')
+        commands = __load_from_file(commands, './sql/twitch_insert.json')
+        commands = __load_from_file(commands, './sql/twitch_select.json')
+        return commands
+
+
+
+    # Connect ------------------------------------------------------------------
+
+    def get_connection(self):
+        return sqlite3.connect(self.filepath, timeout = 1 * 60 * 15) # <- 15 minutes
+
+    # Create -------------------------------------------------------------------
+
+    def create_tables(self):
+        conn = sqlite3.connect(self.filepath)
+        for command in self.commands['create-tables-twitch']:
+            conn.execute(command)
+        conn.commit()
+        conn.close()

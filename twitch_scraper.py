@@ -7,6 +7,12 @@
 # - TwitchScraper   - implements the scraping procedures using TwitchAPI
 # - Twitch<Object>s - various objects from Twitch's API that are held in memory and then dumped to the db
 #
+# Scraping Procedures in TwitchScraper
+# - Livestreams
+# - Recordings
+# - Followers
+# - Inactive
+#
 
 # Imports ----------------------------------------------------------------------
 
