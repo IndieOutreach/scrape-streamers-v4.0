@@ -261,13 +261,40 @@ class TwitchDB():
     # insert a TwitchLivestream object into livestream_snapshots table
     def insert_livestream_snapshot(self, conn, livestream):
         conn.execute(self.commands['insert-livestream-snapshot-twitch'], livestream.to_db_tuple())
+        return
 
+    def insert_total_views_for_streamer(self, conn, streamer):
+        conn.execute(self.commands['insert-total-views-for-streamer-twitch'], streamer.to_db_tuple('total_views'))
+        return
 
     def insert_logs(self, conn, log_name, time_started, timelog_str, stats_str):
         insert_command = self.commands['insert-log-twitch']
         tuple_to_insert = (log_name, time_started, int(time.time()), timelog_str, stats_str, )
         conn.execute(insert_command, tuple_to_insert)
         return
+
+
+    # only inserts a new broadcaster_type value if it is different than the streamer's most recent one
+    def insert_broadcaster_type_for_streamer(self, conn, streamer):
+
+        tuple_to_insert = streamer.to_db_tuple('broadcaster_type')
+        new_value = tuple_to_insert[2]
+
+        # create sql statements
+        insert_command = self.commands['insert-broadcaster-type-for-streamer-twitch']
+        select_command = self.commands['get-most-recent-broadcaster-type-for-streamer-twitch']
+        select_command = select_command.replace('{streamer_id}', str(streamer.id))
+
+        # only insert this value if it is new or changed
+        c = conn.execute(select_command)
+        row = c.fetchone()
+        if (row is None):
+            conn.execute(insert_command, tuple_to_insert)
+        else:
+            if (row[0] != new_value):
+                conn.execute(insert_command, tuple_to_insert)
+        return
+
 
     # Select -------------------------------------------------------------------
 

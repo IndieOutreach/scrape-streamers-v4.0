@@ -25,5 +25,13 @@
 
   "insert-log-twitch": [
     "INSERT INTO logs (log_name, date_started, date_ended, timelogs, stats) VALUES (?, ?, ?, ?, ?);"
+  ],
+
+  "insert-total-views-for-streamer-twitch": [
+    "INSERT INTO total_views (streamer_id, date_scraped, value) VALUES (?, ?, ?);"
+  ],
+
+  "insert-broadcaster-type-for-streamer-twitch": [
+    "INSERT INTO broadcaster_type (streamer_id, date_scraped, value) VALUES (?, ?, ?);"
   ]
 }

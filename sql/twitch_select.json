@@ -9,5 +9,9 @@
 
   "get-all-tag-ids-twitch": [
     "SELECT tag_id FROM tags;"
+  ],
+
+  "get-most-recent-broadcaster-type-for-streamer-twitch": [
+    "SELECT value FROM broadcaster_type WHERE streamer_id={streamer_id} ORDER BY date_scraped DESC LIMIT 1;"
   ]
 }

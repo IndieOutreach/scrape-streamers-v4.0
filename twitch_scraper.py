@@ -45,14 +45,14 @@ class TwitchLivestream():
         return self.valid
 
     def __load_from_api_livestreams_object(self, obj):
-        self.id = int(obj['id'])
-        self.user_id = int(obj['user_id'])
-        self.user_name = obj['user_name']
-        self.game_id = int(obj['game_id']) if (obj['game_id'] != '') else -1
+        self.id           = int(obj['id'])
+        self.user_id      = int(obj['user_id'])
+        self.user_name    = obj['user_name']
+        self.game_id      = int(obj['game_id']) if (obj['game_id'] != '') else -1
         self.viewer_count = int(obj['viewer_count'])
-        self.language = obj['language']
-        self.started_at = obj['started_at']
-        self.tag_ids = obj['tag_ids']
+        self.language     = obj['language']
+        self.started_at   = obj['started_at']
+        self.tag_ids      = obj['tag_ids']
         self.date_scraped = int(time.time())
 
 
@@ -296,6 +296,8 @@ class TwitchStreamer():
         self.date_scraped      = int(time.time())
         return
 
+
+
     def to_db_tuple(self, object_type):
         if (object_type == 'insert'):
             return (
@@ -314,6 +316,18 @@ class TwitchStreamer():
                 self.description,
                 self.profile_image_url,
                 self.offline_image_url
+            )
+        elif (object_type == 'total_views'):
+            return (
+                self.id,
+                self.date_scraped,
+                self.view_count
+            )
+        elif (object_type == 'broadcaster_type'):
+            return (
+                self.id,
+                self.date_scraped,
+                self.broadcaster_type
             )
 
 # TwitchStreamers --------------------------------------------------------------
@@ -580,6 +594,10 @@ class TwitchScraper():
             else:
                 self.db.update_streamer(conn, streamer)
                 stats['num_streamers_updated'] += 1
+
+            # add time-series data for streamers
+            self.db.insert_total_views_for_streamer(conn, streamer)
+            self.db.insert_broadcaster_type_for_streamer(conn, streamer)
 
         # save games
         self.__print('Inserting games into db...')
