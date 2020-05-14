@@ -1,5 +1,13 @@
 {
-  "twitch": [
-    "hello"
+  "get-all-streamer-ids-twitch": [
+    "SELECT streamer_id FROM streamers;"
+  ],
+
+  "get-all-game-ids-twitch": [
+    "SELECT game_id from games;"
+  ],
+
+  "get-all-tag-ids-twitch": [
+    "SELECT tag_id FROM tags;"
   ]
 }

@@ -5,10 +5,11 @@
     "CREATE TABLE IF NOT EXISTS total_views          (streamer_id INT, date_scraped INT, value INT, PRIMARY KEY(streamer_id, date_scraped), FOREIGN KEY(streamer_id) REFERENCES streamers(streamer_id));",
     "CREATE TABLE IF NOT EXISTS broadcaster_type     (streamer_id INT, date_scraped INT, value INT, PRIMARY KEY(streamer_id, date_scraped), FOREIGN KEY(streamer_id) REFERENCES streamers(streamer_id));",
     "CREATE TABLE IF NOT EXISTS games                (game_id INT, game_name TEXT, box_art_url TEXT, PRIMARY KEY(game_id));",
-    "CREATE TABLE IF NOT EXISTS livestream_snapshots (livestream_id INT, streamer_id INT, game_id INT, viewers INT, date_started INT, date_scraped INT, tag_ids TEXT, language TEXT, PRIMARY KEY(livestream_id), FOREIGN KEY(streamer_id) REFERENCES streamers(streamer_id), FOREIGN KEY(game_id) REFERENCES games(game_id));",
+    "CREATE TABLE IF NOT EXISTS livestream_snapshots (livestream_id INT, streamer_id INT, game_id INT, viewers INT, date_started INT, date_scraped INT, tag_ids TEXT, language TEXT, PRIMARY KEY(livestream_id, date_scraped), FOREIGN KEY(streamer_id) REFERENCES streamers(streamer_id), FOREIGN KEY(game_id) REFERENCES games(game_id));",
     "CREATE TABLE IF NOT EXISTS videos               (video_id INT, streamer_id INT, game_id INT, view_count INT, video_type TEXT, date_created INT, date_published INT, date_scraped INT, duration DOUBLE, language TEXT, PRIMARY KEY(video_id), FOREIGN KEY(streamer_id) REFERENCES streamers(streamer_id), FOREIGN KEY(game_id) REFERENCES games(game_id));",
     "CREATE TABLE IF NOT EXISTS no_videos            (streamer_id INT, date_scraped INT, PRIMARY KEY(streamer_id), FOREIGN KEY(streamer_id) REFERENCES streamers(streamer_id));",
     "CREATE TABLE IF NOT EXISTS game_snapshots       (game_id INT, date_scraped INT, num_streamers INT, num_zero INT, total_viewers INT, min_viewers INT, max_viewers INT, median_viewers INT, mean_viewers DOUBLE, std_dev_viewers DOUBLE, PRIMARY KEY(game_id, date_scraped), FOREIGN KEY(game_id) REFERENCES games(game_id));",
+    "CREATE TABLE IF NOT EXISTS tags                 (tag_id TEXT, is_auto BOOLEAN, english_name TEXT, localization_names TEXT, english_description TEXT, localization_descriptions TEXT, PRIMARY KEY(tag_id))",
     "CREATE TABLE IF NOT EXISTS logs                 (log_name TEXT, date_started INT, date_ended INT, timelogs TEXT, stats TEXT, PRIMARY KEY(log_name, date_started));"
   ]
 }

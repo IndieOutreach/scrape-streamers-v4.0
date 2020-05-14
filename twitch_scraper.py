@@ -53,6 +53,7 @@ class TwitchLivestream():
         self.language = obj['language']
         self.started_at = obj['started_at']
         self.tag_ids = obj['tag_ids']
+        self.date_scraped = int(time.time())
 
 
     # returns a list of tag ids and an empty list if there are none
@@ -60,6 +61,19 @@ class TwitchLivestream():
         if (isinstance(self.tag_ids, list)):
             return self.tag_ids
         return []
+
+    def to_db_tuple(self):
+        return (
+            self.id,
+            self.user_id,
+            self.game_id,
+            self.viewer_count,
+            self.started_at,
+            self.date_scraped,
+            json.dumps(self.tag_ids),
+            self.language
+        )
+
 
 # TwitchLivestreams ------------------------------------------------------------
 
@@ -104,6 +118,9 @@ class TwitchLivestreams():
             if (livestream.viewer_count > n):
                 ids.append(livestream.user_id)
         return ids
+
+    def get_livestream_ids_with_no_viewers(self):
+        return list(self.livestreams_no_viewers.keys())
 
     # returns all tag_ids in a list
     def get_all_tag_ids(self):
@@ -166,6 +183,13 @@ class TwitchGame():
         self.box_art_url = data['box_art_url']
         return
 
+    def to_db_tuple(self):
+        return (
+            self.id,
+            self.name,
+            self.box_art_url
+        )
+
 # TwitchGames ------------------------------------------------------------------
 
 class TwitchGames():
@@ -174,10 +198,18 @@ class TwitchGames():
         self.games = {}
         return
 
+    def get(self, game_id):
+        if (game_id in self.games):
+            return self.games[game_id]
+        return False
+
     def add_from_api(self, obj):
         game = TwitchGame(obj, 'api/games')
         if (game.is_valid()):
             self.games[game.id] = game
+
+    def get_game_ids(self):
+        return list(self.games.keys())
 
 
 # TwitchTag --------------------------------------------------------------------
@@ -200,7 +232,19 @@ class TwitchTag():
         self.is_auto                   = obj['is_auto']
         self.localization_names        = obj['localization_names']
         self.localization_descriptions = obj['localization_descriptions']
+        self.english_name              = "" if ('en-us' not in obj['localization_names']) else obj['localization_names']['en-us']
+        self.english_description       = "" if ('en-us' not in obj['localization_descriptions']) else obj['localization_descriptions']['en-us']
         return
+
+    def to_db_tuple(self):
+        return (
+            self.id,
+            self.is_auto,
+            self.english_name,
+            json.dumps(self.localization_names),
+            self.english_description,
+            json.dumps(self.localization_descriptions)
+        )
 
 
 # TwitchTags -------------------------------------------------------------------
@@ -216,6 +260,13 @@ class TwitchTags():
         if (tag.is_valid()):
             self.tags[tag.id] = tag
 
+    def get_tag_ids(self):
+        return list(self.tags.keys())
+
+    def get(self, tag_id):
+        if (tag_id in self.tags):
+            return self.tags[tag_id]
+        return False
 
 # TwitchStreamer ---------------------------------------------------------------
 
@@ -242,7 +293,28 @@ class TwitchStreamer():
         self.view_count        = int(obj['view_count'])
         self.profile_image_url = obj['profile_image_url']
         self.offline_image_url = obj['offline_image_url']
+        self.date_scraped      = int(time.time())
         return
+
+    def to_db_tuple(self, object_type):
+        if (object_type == 'insert'):
+            return (
+                self.id,
+                self.login,
+                self.display_name,
+                self.description,
+                self.profile_image_url,
+                self.offline_image_url,
+                self.date_scraped
+            )
+        elif (object_type == 'update'):
+            return (
+                self.login,
+                self.display_name,
+                self.description,
+                self.profile_image_url,
+                self.offline_image_url
+            )
 
 # TwitchStreamers --------------------------------------------------------------
 
@@ -256,6 +328,14 @@ class TwitchStreamers():
         streamer = TwitchStreamer(obj, 'api/users')
         if (streamer.is_valid()):
             self.streamers[streamer.id] = streamer
+
+    def get_streamer_ids(self):
+        return list(self.streamers.keys())
+
+    def get(self, streamer_id):
+        if (streamer_id in self.streamers):
+            return self.streamers[streamer_id]
+        return False
 
 # ==============================================================================
 # Class: TwitchAPI
@@ -405,13 +485,30 @@ class TwitchScraper():
 
     def procedure_scrape_livestreams(self):
 
+        time_started = int(time.time())
+        stats = {
+            'num_livestreams':             0,
+            'num_livestreams_inserted':    0,
+            'num_livestreams_no_viewers':  0,
+            'num_streamers_inserted':      0,
+            'num_streamers_updated':       0,
+            'num_game_snapshots_inserted': 0,
+            'num_games_inserted':          0,
+            'num_tags_inserted':           0
+        }
+
         # Phase 1: check what resources the db already has ---------------------
 
-        known_game_ids = {}
-        known_tag_ids = {}
+        conn = self.db.get_connection()
+        known_game_ids     = self.db.get_all_game_ids(conn)
+        known_tag_ids      = self.db.get_all_tag_ids(conn)
+        known_streamer_ids = self.db.get_all_streamer_ids(conn)
+        conn.close()
 
 
         # Phase 2: Scrape Twitch API for livestreams and related resources -----
+
+        self.__print('\nScraping Data ----------------------------------------')
 
         # 2.a) Scrape for all livestreams
         livestreams, cursor, timelogs = TwitchLivestreams(), False, TimeLogs(self.timelog_actions)
@@ -436,9 +533,11 @@ class TwitchScraper():
             if (game_id not in known_game_ids):
                 new_game_ids.append(game_id)
 
+        self.__print('Scraping ' + str(len(new_game_ids)) + ' new games...')
         new_games = TwitchGames()
         for batch_of_ids in self.__break_list_into_batches(new_game_ids, 100):
             new_games, timelogs = self.twitch.scrape_games(batch_of_ids, new_games, timelogs)
+        self.__print('Scraping games complete!\n')
 
         # get stats about all games
         game_platform_stats = self.get_platform_stats_for_games(livestreams)
@@ -449,21 +548,89 @@ class TwitchScraper():
             if (tag_id not in known_tag_ids):
                 new_tag_ids.append(tag_id)
 
+        self.__print('Scraping ' + str(len(new_tag_ids)) + ' new tags...')
         new_tags = TwitchTags()
         for batch_of_ids in self.__break_list_into_batches(new_tag_ids, 100):
             new_tags, timelogs = self.twitch.scrape_tags(batch_of_ids, new_tags, timelogs)
-
+        self.__print('Scraping tags complete\n')
 
         # 2.d) Scrape all user profiles for streamers that have enough viewers
         streamers = TwitchStreamers()
-        for batch_of_ids in self.__break_list_into_batches(livestreams.get_streamer_ids_with_more_than_n_views(3), 100):
+        streamer_ids_to_scrape  = livestreams.get_streamer_ids_with_more_than_n_views(3)
+        streamer_ids_in_batches = self.__break_list_into_batches(streamer_ids_to_scrape, 100)
+        self.__print('Scraping ' + str(len(streamer_ids_to_scrape)) + ' in ' + str(len(streamer_ids_in_batches)) + ' batches...')
+        for i, batch_of_ids in enumerate(streamer_ids_in_batches):
+            self.__print('batch: ' + str(i))
             streamers, timelogs = self.twitch.scrape_users(batch_of_ids, streamers, timelogs)
+        self.__print('Scraping streamer profiles complete')
 
 
         # Phase 3: Commit everything to the database ---------------------------
 
+        self.__print('\nSaving Data ------------------------------------------')
+        conn = self.db.get_connection()
+
+        # save streamer profiles
+        self.__print('Inserting streamers into db...')
+        for streamer_id in streamers.get_streamer_ids():
+            streamer = streamers.get(streamer_id)
+            if (streamer_id not in known_streamer_ids):
+                self.db.insert_new_streamer(conn, streamer)
+                stats['num_streamers_inserted'] += 1
+            else:
+                self.db.update_streamer(conn, streamer)
+                stats['num_streamers_updated'] += 1
+
+        # save games
+        self.__print('Inserting games into db...')
+        for game_id in new_games.get_game_ids():
+            game = new_games.get(game_id)
+            self.db.insert_game(conn, game)
+            stats['num_games_inserted'] += 1
+
+
+        # save platform stats
+        self.__print('Inserting game snapshots into db...')
+        for game_id, game in game_platform_stats.items():
+            self.db.insert_game_snapshot(conn, game)
+            stats['num_game_snapshots_inserted'] += 1
+
+        # save twitch tags
+        self.__print('Inserting twitch tags into db...')
+        for tag_id in new_tags.get_tag_ids():
+            tag = new_tags.get(tag_id)
+            self.db.insert_tag(conn, tag)
+            stats['num_tags_inserted'] += 1
+
+
+        # save livestreams
+        self.__print('Inserting livestreams into db...')
+        for livestream_id in livestreams.get_livestream_ids_with_more_than_n_views(3):
+            livestream = livestreams.get(livestream_id)
+            self.db.insert_livestream_snapshot(conn, livestream)
+            stats['num_livestreams_inserted'] += 1
+
+        # save time-series stuff (total_views, broadcaster_type)
+
+
         # Phase 4: Save logs to the database -----------------------------------
 
+        self.__print('\nSaving Logs ------------------------------------------')
+        stats['num_livestreams']            = livestreams.get_num_livestreams()
+        stats['num_livestreams_no_viewers'] = len(livestreams.get_livestream_ids_with_no_viewers())
+
+        self.__print('Inserting scraping logs into db...')
+        timelog_str = json.dumps(timelogs.get_stats_from_logs())
+        stats_str   = json.dumps(stats)
+        self.db.insert_logs(conn, 'scrape-livestreams', time_started, timelog_str, stats_str)
+
+        conn.commit()
+        conn.close()
+
+        self.__print('\nStats:')
+        for k, v in stats.items():
+            self.__print(k + ': ' + str(v))
+        self.__print('\nScrape Livestreams Procedure completed!\n')
         return
 
 

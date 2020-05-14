@@ -227,3 +227,67 @@ class TwitchDB():
             conn.execute(command)
         conn.commit()
         conn.close()
+
+
+    # Insert -------------------------------------------------------------------
+
+    # inserts a new streamer into streamers table
+    def insert_new_streamer(self, conn, streamer):
+        conn.execute(self.commands['insert-new-streamer-twitch'], streamer.to_db_tuple('insert'))
+        return
+
+
+    # updates an existing streamer in the streamers table
+    def update_streamer(self, conn, streamer):
+        update_command = self.commands['update-existing-streamer-twitch'].replace('{streamer_id}', str(streamer.id))
+        conn.execute(update_command, streamer.to_db_tuple('update'))
+        return
+
+    # inserts a TwitchGame into games table
+    def insert_game(self, conn, game):
+        conn.execute(self.commands['insert-game-twitch'], game.to_db_tuple())
+        return
+
+    # inserts a StatsBucket object into the game_snapshots table
+    def insert_game_snapshot(self, conn, game_stats):
+        conn.execute(self.commands['insert-game-snapshot-twitch'], game_stats.to_db_tuple())
+        return
+
+    # inserts a TwitchTag into tags table
+    def insert_tag(self, conn, tag):
+        conn.execute(self.commands['insert-tag-twitch'], tag.to_db_tuple())
+        return
+
+    # insert a TwitchLivestream object into livestream_snapshots table
+    def insert_livestream_snapshot(self, conn, livestream):
+        conn.execute(self.commands['insert-livestream-snapshot-twitch'], livestream.to_db_tuple())
+
+
+    def insert_logs(self, conn, log_name, time_started, timelog_str, stats_str):
+        insert_command = self.commands['insert-log-twitch']
+        tuple_to_insert = (log_name, time_started, int(time.time()), timelog_str, stats_str, )
+        conn.execute(insert_command, tuple_to_insert)
+        return
+
+    # Select -------------------------------------------------------------------
+
+    # returns a lookup table of streamer_ids for streamers that are already in the database
+    def get_all_streamer_ids(self, conn):
+        ids = {}
+        for row in conn.execute(self.commands['get-all-streamer-ids-twitch']):
+            ids[row[0]] = True
+        return ids
+
+    # returns a lookup table of game_ids for games that are already in the database
+    def get_all_game_ids(self, conn):
+        ids = {}
+        for row in conn.execute(self.commands['get-all-game-ids-twitch']):
+            ids[row[0]] = True
+        return ids
+
+    # returns a lookup table of tag_ids that already exist in database
+    def get_all_tag_ids(self, conn):
+        ids = {}
+        for row in conn.execute(self.commands['get-all-tag-ids-twitch']):
+            ids[row[0]] = True
+        return ids

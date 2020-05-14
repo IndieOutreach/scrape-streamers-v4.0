@@ -1,5 +1,29 @@
 {
-  "twitch": [
-    "hello"
+  "insert-new-streamer-twitch": [
+    "INSERT INTO streamers (streamer_id, login, display_name, description, profile_image_url, offline_image_url, date_first_scraped) VALUES (?, ?, ?, ?, ?, ?, ?);"
+  ],
+
+  "update-existing-streamer-twitch": [
+    "UPDATE streamers SET login=?, display_name=?, description=?, profile_image_url=?, offline_image_url=? WHERE streamer_id={streamer_id};"
+  ],
+
+  "insert-game-twitch": [
+    "INSERT OR REPLACE INTO games (game_id, game_name, box_art_url) VALUES (?, ?, ?);"
+  ],
+
+  "insert-tag-twitch": [
+    "INSERT OR REPLACE INTO tags (tag_id, is_auto, english_name, localization_names, english_description, localization_descriptions) VALUES (?, ?, ?, ?, ?, ?);"
+  ],
+
+  "insert-livestream-snapshot-twitch": [
+    "INSERT INTO livestream_snapshots (livestream_id, streamer_id, game_id, viewers, date_started, date_scraped, tag_ids, language) VALUES (?, ?, ?, ?, ?, ?, ?, ?);"
+  ],
+
+  "insert-game-snapshot-twitch": [
+    "INSERT INTO game_snapshots (game_id, date_scraped, num_streamers, num_zero, total_viewers, min_viewers, max_viewers, median_viewers, mean_viewers, std_dev_viewers) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"
+  ],
+
+  "insert-log-twitch": [
+    "INSERT INTO logs (log_name, date_started, date_ended, timelogs, stats) VALUES (?, ?, ?, ?, ?);"
   ]
 }

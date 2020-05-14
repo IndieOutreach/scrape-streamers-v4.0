@@ -73,6 +73,14 @@ Contains basic profile info about streamers
   9. `mean_viewers` - double
   10. `std_dev_viewers` - double
 
+#### Table: tags
+  1. `tag_id` - int
+  2. `is_auto` - boolean
+  3. `english_name` - text
+  4. `localization_names` - text(JSON)
+  5. `english_description` - text
+  6. `localization_descriptions` - text(JSON)
+
 #### Table: logs
   1. `log_name` - text
   2. `date_started` - epoch int (seconds)
