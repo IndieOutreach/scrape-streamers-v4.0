@@ -33,5 +33,9 @@
 
   "insert-broadcaster-type-for-streamer-twitch": [
     "INSERT INTO broadcaster_type (streamer_id, date_scraped, value) VALUES (?, ?, ?);"
+  ],
+
+  "insert-followers-count-twitch": [
+    "INSERT INTO followers (streamer_id, date_scraped, value) VALUES (?, ?, ?);"
   ]
 }

@@ -24,8 +24,8 @@ def run():
 
     scraper = TwitchScraper()
     scraper.set_print_mode(True)
-    scraper.procedure_scrape_livestreams()
-
+    #scraper.procedure_scrape_livestreams()
+    scraper.procedure_scrape_followers()
 # Run --------------------------------------------------------------------------
 
 if (__name__ == '__main__'):

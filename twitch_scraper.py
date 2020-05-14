@@ -473,6 +473,17 @@ class TwitchAPI():
         self.__sleep(r.headers)
         return users, timelogs
 
+    # for a given streamer, get the number of users following them
+    def scrape_num_followers(self, streamer_id, timelogs):
+        num_followers = -1
+        params = {'to_id': streamer_id}
+        r, timelogs = self.__get('https://api.twitch.tv/helix/users/follows', params, self.__get_helix_headers(), timelogs, 'get_followers')
+        if (r.status_code == 200):
+            results = r.json()
+            num_followers = results['total']
+        return num_followers, timelogs
+
+
 # ==============================================================================
 # Class: TwitchScraper
 # ==============================================================================
@@ -537,7 +548,6 @@ class TwitchScraper():
                 break
             num_old_livestreams = num_livestreams
             page_num += 1
-            break
         self.__print('Scraping Livestreams complete!\n')
 
 
@@ -572,7 +582,7 @@ class TwitchScraper():
         streamers = TwitchStreamers()
         streamer_ids_to_scrape  = livestreams.get_streamer_ids_with_more_than_n_views(3)
         streamer_ids_in_batches = self.__break_list_into_batches(streamer_ids_to_scrape, 100)
-        self.__print('Scraping ' + str(len(streamer_ids_to_scrape)) + ' in ' + str(len(streamer_ids_in_batches)) + ' batches...')
+        self.__print('Scraping ' + str(len(streamer_ids_to_scrape)) + ' streamer profiles in ' + str(len(streamer_ids_in_batches)) + ' batches...')
         for i, batch_of_ids in enumerate(streamer_ids_in_batches):
             self.__print('batch: ' + str(i))
             streamers, timelogs = self.twitch.scrape_users(batch_of_ids, streamers, timelogs)
@@ -628,8 +638,6 @@ class TwitchScraper():
             self.db.insert_livestream_snapshot(conn, livestream)
             stats['num_livestreams_inserted'] += 1
 
-        # save time-series stuff (total_views, broadcaster_type)
-
 
         # Phase 4: Save logs to the database -----------------------------------
 
@@ -675,3 +683,51 @@ class TwitchScraper():
                 batches.append([])
             batches[batch_index].append(v)
         return batches
+
+
+    # Procedure: Scrape Followers ----------------------------------------------
+
+
+    def procedure_scrape_followers(self):
+
+        self.__print('Starting Scrape Followers procedure!')
+        time_started = int(time.time())
+        stats = {'num_streamers_inserted': 0}
+        timelogs = TimeLogs(self.timelog_actions)
+
+        # Phase 1: Get a list of streamers that need follower counts -----------
+
+        conn = self.db.get_connection()
+        streamer_ids = self.db.get_streamer_ids_that_need_follower_data(conn, 750)
+        conn.close()
+
+        # Phase 2: Scrape followers from API -----------------------------------
+
+        self.__print('Scraping follower counts for ' + str(len(streamer_ids)) + ' streamers...')
+        followers_lookup = {} # <- {streamer_id -> num_followers}
+        for i, streamer_id in enumerate(streamer_ids):
+            num_followers, timelogs = self.twitch.scrape_num_followers(streamer_id, timelogs)
+            followers_lookup[streamer_id] = num_followers
+            if (i % 25 == 0):
+                self.__print('scraped ' + str(i) + ' out of ' + str(len(streamer_ids)))
+
+        # Phase 3: Commit follower counts to the database ----------------------
+
+        self.__print('Commiting follower counts to database...')
+        conn = self.db.get_connection()
+        for streamer_id, num_followers in followers_lookup.items():
+            self.db.insert_followers_count(conn, streamer_id, num_followers)
+            stats['num_streamers_inserted'] += 1
+
+        # Phase 4: Save logs to the database -----------------------------------
+
+        self.__print('Inserting scraping logs into db...')
+        timelog_str = json.dumps(timelogs.get_stats_from_logs())
+        stats_str   = json.dumps(stats)
+        self.db.insert_logs(conn, 'scrape-followers', time_started, timelog_str, stats_str)
+
+        conn.commit()
+        conn.close()
+
+        self.__print('Scrape Followers Procedure complete!')
+        return

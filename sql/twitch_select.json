@@ -13,5 +13,12 @@
 
   "get-most-recent-broadcaster-type-for-streamer-twitch": [
     "SELECT value FROM broadcaster_type WHERE streamer_id={streamer_id} ORDER BY date_scraped DESC LIMIT 1;"
+  ],
+
+  "get-streamer-ids-with-no-followers-data-twitch": [
+    "SELECT streamer_id FROM streamers WHERE streamer_id NOT IN (SELECT streamer_id FROM followers);"
+  ],
+  "get-streamer-ids-that-dont-have-followers-from-last-day-twitch": [
+    "SELECT streamer_id FROM followers GROUP BY streamer_id HAVING MAX(date_scraped) < {date} ORDER BY MAX(date_scraped) ASC;"
   ]
 }

@@ -295,6 +295,12 @@ class TwitchDB():
                 conn.execute(insert_command, tuple_to_insert)
         return
 
+    # inserts the number of followers a streamer has into followers table
+    def insert_followers_count(self, conn, streamer_id, num_followers):
+        insert_command = self.commands['insert-followers-count-twitch']
+        tuple_to_insert = (streamer_id, int(time.time()), num_followers)
+        conn.execute(insert_command, tuple_to_insert)
+        return
 
     # Select -------------------------------------------------------------------
 
@@ -317,4 +323,26 @@ class TwitchDB():
         ids = {}
         for row in conn.execute(self.commands['get-all-tag-ids-twitch']):
             ids[row[0]] = True
+        return ids
+
+    # returns a list of streamer_ids that need follower data (because they haven't gotten it in 24 hours+ or don't have any at all)
+    # streamer_ids are sorted so that the ones who are furthest behind scraping wise are at the front
+    def get_streamer_ids_that_need_follower_data(self, conn, limit):
+        ids = []
+
+        # 1) get streamer IDs with NO followers data at all
+        select_command = self.commands['get-streamer-ids-with-no-followers-data-twitch']
+        for row in conn.execute(select_command):
+            ids.append(row[0])
+            if (len(ids) >= limit):
+                return ids
+
+        # 2) If step 1 didn't fill out out limit, get streamer IDs that don't have follower data from the past day
+        date_cutoff = int(time.time()) - (1 * 60 * 60 * 24) # <- 1 day ago
+        select_command = self.commands['get-streamer-ids-that-dont-have-followers-from-last-day-twitch']
+        select_command = select_command.replace('{date}', str(date_cutoff))
+        for row in conn.execute(select_command):
+            ids.append(row[0])
+            if (len(ids) >= limit):
+                return ids
         return ids
