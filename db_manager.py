@@ -351,7 +351,7 @@ class TwitchDB():
     # returns a list of streamer IDs that haven't livestreamed in over 24 hours
     def get_inactive_streamer_ids(self, conn):
         ids = []
-        date_cutoff = int(time.time()) - (1 * 60 * 60 * 1) # <- 1 day ago
+        date_cutoff = int(time.time()) - (1 * 60 * 60 * 24) # <- 1 day ago
         select_command = self.commands['get-inactive-streamer-ids'].replace('{date}', str(date_cutoff))
         for row in conn.execute(select_command):
             ids.append(row[0])
