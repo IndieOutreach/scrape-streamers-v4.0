@@ -22,26 +22,22 @@ from db_manager import *
 from twilio_sms import *
 from mixer_scraper import *
 
-
-# Hyper Parameters -------------------------------------------------------------
-
-# lookup table indicating how many 30 second sleep sessions a thread should take before starting work again
-__sleep_period = 30
-__sleep = {
-    'scrape-livestreams': 2 * 15,   # <- run every 15 minutes
-    'scrape-recordings':  2 * 5,    # <- run every 5 minutes
-    'scrape-inactive':    2 * 5     # <- run every 15 minutes
-}
-
-
 # Threading Related Variables --------------------------------------------------
 
 worker_threads   = {}     # <- lookup table of {thread_id: thread}
-thread_functions = {}     # <- lookup table of {thread_id: function to run for thread }
 thread_status    = {}     # <- lookup table of {thread_id: status}, if status == 'end', then the thread is flagged to terminate
 __thread_id_livestreams = 'Scrape Livestreams'
 __thread_id_recordings  = 'Scrape Recordings'
 __thread_id_inactive    = 'Scrape Inactive'
+
+
+# lookup table indicating how many 30 second sleep sessions a thread should take before starting work again
+__sleep_period = 30
+__sleep = {
+    __thread_id_livestreams: 2 * 15,   # <- run every 15 minutes
+    __thread_id_recordings:  2 * 5,    # <- run every 5 minutes
+    __thread_id_inactive:    2 * 5     # <- run every 5 minutes
+}
 
 
 # Scraper Health Variables -----------------------------------------------------
@@ -56,45 +52,19 @@ sms = TwilioSMS()
 # Scraping Procedures
 # ==============================================================================
 
-def thread_scrape_livestreams(thread_id):
-    mixer_scraper = MixerScraper()
+# Threading Functions ----------------------------------------------------------
+
+def thread_scrape_procedure(thread_id, scraping_procedure):
     while(True):
         print_from_thread(thread_id, "starting work")
-        mixer_scraper.procedure_scrape_livestreams()
+        scraping_procedure()
         print_from_thread(thread_id, "sleeping")
-        for i in range(__sleep['scrape-livestreams']):
+        for i in range(__sleep[thread_id]):
             if (thread_status[thread_id] == 'end'):
                 return
             time.sleep(__sleep_period)
 
 
-def thread_scrape_recordings(thread_id):
-    mixer_scraper = MixerScraper()
-    while(True):
-        print_from_thread(thread_id, "starting work")
-        mixer_scraper.procedure_scrape_recordings()
-        print_from_thread(thread_id, "sleeping")
-        for i in range(__sleep['scrape-recordings']):
-            if (thread_status[thread_id] == 'end'):
-                return
-            time.sleep(__sleep_period)
-
-
-def thread_scrape_inactive(thread_id):
-    mixer_scraper = MixerScraper()
-    while(True):
-        print_from_thread(thread_id, "starting work")
-        mixer_scraper.procedure_scrape_inactive()
-        print_from_thread(thread_id, "sleeping")
-        for i in range(__sleep['scrape-inactive']):
-            if (thread_status[thread_id] == 'end'):
-                return
-            time.sleep(__sleep_period)
-
-
-# ==============================================================================
-# Main
-# ==============================================================================
 
 # prints a message with a standardized date-value formatting
 def print_from_thread(thread_id, message):
@@ -103,17 +73,27 @@ def print_from_thread(thread_id, message):
 
 def create_worker_thread(thread_id):
 
-    # only allow a thread to start if it is valid
-    if (thread_id not in thread_functions):
+    # get the scraping procedure we want to run for this thread
+    mixer_scraper = MixerScraper()
+    procedure_to_run = False
+    if (thread_id == __thread_id_livestreams):
+        procedure_to_run = mixer_scraper.procedure_scrape_livestreams
+    elif (thread_id == __thread_id_inactive):
+        procedure_to_run = mixer_scraper.procedure_scrape_inactive
+    elif (thread_id == __thread_id_recordings):
+        procedure_to_run = mixer_scraper.procedure_scrape_recordings
+    else:
+        print('Invalid thread ID found: ', thread_id)
         return
 
     # run the thread
-    worker_threads[thread_id] = threading.Thread(target=thread_functions[thread_id], args=(thread_id, ))
+    worker_threads[thread_id] = threading.Thread(target=thread_scrape_procedure, args=(thread_id, procedure_to_run))
     thread_status[thread_id]  = 'live'
     worker_threads[thread_id].start()
     return
 
 
+# Functions for Starting / Stopping --------------------------------------------
 
 # function that allows all threads to terminate gracefully
 def stop_scraper(sig, frame):
@@ -164,6 +144,9 @@ def check_if_program_already_running():
     return False
 
 
+# ==============================================================================
+# Main
+# ==============================================================================
 
 # main function
 def run():
@@ -203,11 +186,6 @@ def run():
 
 
 # Run --------------------------------------------------------------------------
-
-# initialize thread starting functions
-thread_functions[__thread_id_recordings]  = thread_scrape_recordings
-thread_functions[__thread_id_livestreams] = thread_scrape_livestreams
-thread_functions[__thread_id_inactive]    = thread_scrape_inactive
 
 if (__name__ == '__main__'):
     run()

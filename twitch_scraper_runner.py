@@ -22,17 +22,6 @@ from db_manager import *
 from twilio_sms import *
 from twitch_scraper import *
 
-# Hyper Parameters -------------------------------------------------------------
-
-# lookup table indicating how many 30 second sleep sessions a thread should take before starting work again
-__sleep_period = 30
-__sleep = {
-    'scrape-livestreams': 2 * 15,   # <- run every 15 minutes
-    'scrape-recordings':  2 * 5,    # <- run every 5 minutes
-    'scrape-inactive':    2 * 15,   # <- run every 15 minutes,
-    'scrape-followers':   2 * 5     # <- run every 5 minutes
-}
-
 
 # Threading Related Variables --------------------------------------------------
 
@@ -42,6 +31,16 @@ __thread_id_livestreams = 'Scrape Livestreams'
 __thread_id_recordings  = 'Scrape Recordings'
 __thread_id_inactive    = 'Scrape Inactive'
 __thread_id_followers   = 'Scrape Followers'
+
+
+# lookup table indicating how many 30 second sleep sessions a thread should take before starting work again
+__sleep_period = 30
+__sleep = {
+    __thread_id_livestreams: 2 * 15,   # <- run every 15 minutes
+    __thread_id_recordings:  2 * 5,    # <- run every 5 minutes
+    __thread_id_inactive:    2 * 15,   # <- run every 15 minutes,
+    __thread_id_followers:   2 * 5     # <- run every 5 minutes
+}
 
 
 # Scraper Health Variables -----------------------------------------------------
@@ -57,21 +56,19 @@ sms = TwilioSMS()
 # ==============================================================================
 
 
+# Functions for Threads --------------------------------------------------------
+
 def thread_scrape_procedure(thread_id, scraping_procedure):
     while(True):
         print_from_thread(thread_id, "starting work")
         scraping_procedure()
         print_from_thread(thread_id, "sleeping")
-        for i in range(__sleep['scrape-livestreams']):
+        for i in range(__sleep[thread_id]):
             if (thread_status[thread_id] == 'end'):
                 return
             time.sleep(__sleep_period)
 
 
-
-# ==============================================================================
-# Main
-# ==============================================================================
 
 # prints a message with a standardized date-value formatting
 def print_from_thread(thread_id, message):
@@ -101,7 +98,7 @@ def create_worker_thread(thread_id):
     return
 
 
-
+# Functions for Starting / Stopping --------------------------------------------
 
 # function that allows all threads to terminate gracefully
 def stop_scraper(sig, frame):
@@ -152,6 +149,10 @@ def check_if_program_already_running():
     f.close()
     return False
 
+
+# ==============================================================================
+# Main
+# ==============================================================================
 
 
 def run():
