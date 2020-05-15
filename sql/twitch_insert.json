@@ -1,10 +1,10 @@
 {
   "insert-new-streamer-twitch": [
-    "INSERT INTO streamers (streamer_id, login, display_name, description, profile_image_url, offline_image_url, date_first_scraped) VALUES (?, ?, ?, ?, ?, ?, ?);"
+    "INSERT INTO streamers (streamer_id, login, display_name, description, profile_image_url, offline_image_url, date_first_scraped, date_last_scraped) VALUES (?, ?, ?, ?, ?, ?, ?, ?);"
   ],
 
   "update-existing-streamer-twitch": [
-    "UPDATE streamers SET login=?, display_name=?, description=?, profile_image_url=?, offline_image_url=? WHERE streamer_id={streamer_id};"
+    "UPDATE streamers SET login=?, display_name=?, description=?, profile_image_url=?, offline_image_url=?, date_last_scraped=? WHERE streamer_id={streamer_id};"
   ],
 
   "insert-game-twitch": [

@@ -307,6 +307,7 @@ class TwitchStreamer():
                 self.description,
                 self.profile_image_url,
                 self.offline_image_url,
+                self.date_scraped,
                 self.date_scraped
             )
         elif (object_type == 'update'):
@@ -315,7 +316,8 @@ class TwitchStreamer():
                 self.display_name,
                 self.description,
                 self.profile_image_url,
-                self.offline_image_url
+                self.offline_image_url,
+                self.date_scraped
             )
         elif (object_type == 'total_views'):
             return (
@@ -684,6 +686,58 @@ class TwitchScraper():
             batches[batch_index].append(v)
         return batches
 
+
+    # Procedure: Scrape Inactive -----------------------------------------------
+
+    def procedure_scrape_inactive(self):
+
+        self.__print('Starting Scrape Inactive procedure!')
+        time_started = int(time.time())
+        stats = {'num_streamers_updated': 0}
+        timelogs = TimeLogs(self.timelog_actions)
+
+        # Phase 1: Get a list of streamers that are "inactive" -----------------
+
+        conn = self.db.get_connection()
+        streamer_ids = self.db.get_inactive_streamer_ids(conn)
+        conn.close()
+
+        # Phase 2: Scrape info for each streamer in our list -------------------
+
+        streamers = TwitchStreamers()
+        self.__print('Scraping ' + str(len(streamer_ids)) + ' streamer profiles in batches of size <= 100')
+        for i, batch_of_ids in enumerate(self.__break_list_into_batches(streamer_ids, 100)):
+            self.__print('batch: ' + str(i))
+            streamers, timelogs = self.twitch.scrape_users(batch_of_ids, streamers, timelogs)
+        self.__print('Finished scraping streamer profiles')
+
+
+        # Phase 3: Save streamer info to the database --------------------------
+
+        conn = self.db.get_connection()
+        # save streamer profiles
+        self.__print('Inserting streamers into db...')
+        for streamer_id in streamers.get_streamer_ids():
+            streamer = streamers.get(streamer_id)
+            self.db.update_streamer(conn, streamer)
+            stats['num_streamers_updated'] += 1
+
+            # add time-series data for streamers
+            self.db.insert_total_views_for_streamer(conn, streamer)
+            self.db.insert_broadcaster_type_for_streamer(conn, streamer)
+
+
+        # Phase 4: Log this scraping procedure to database ---------------------
+
+        self.__print('Inserting scraping logs into db...')
+        timelog_str = json.dumps(timelogs.get_stats_from_logs())
+        stats_str   = json.dumps(stats)
+        self.db.insert_logs(conn, 'scrape-inactive', time_started, timelog_str, stats_str)
+
+        conn.commit()
+        conn.close()
+        self.__print('Scrape Inactive procedure finished!')
+        return
 
     # Procedure: Scrape Followers ----------------------------------------------
 

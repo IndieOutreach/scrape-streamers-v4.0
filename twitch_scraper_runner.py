@@ -22,10 +22,12 @@ def run():
     twitch_db = TwitchDB()
     twitch_db.create_tables()
 
+    timef = int(time.time()) - (1 * 60 * 60 * 10)
     scraper = TwitchScraper()
     scraper.set_print_mode(True)
     #scraper.procedure_scrape_livestreams()
-    scraper.procedure_scrape_followers()
+    #scraper.procedure_scrape_followers()
+    scraper.procedure_scrape_inactive()
 # Run --------------------------------------------------------------------------
 
 if (__name__ == '__main__'):

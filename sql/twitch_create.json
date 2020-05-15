@@ -1,6 +1,6 @@
 {
   "create-tables-twitch": [
-    "CREATE TABLE IF NOT EXISTS streamers            (streamer_id INT, login TEXT, display_name TEXT, description TEXT, profile_image_url TEXT, offline_image_url TEXT, date_first_scraped INT, PRIMARY KEY(streamer_id));",
+    "CREATE TABLE IF NOT EXISTS streamers            (streamer_id INT, login TEXT, display_name TEXT, description TEXT, profile_image_url TEXT, offline_image_url TEXT, date_first_scraped INT, date_last_scraped INT, PRIMARY KEY(streamer_id));",
     "CREATE TABLE IF NOT EXISTS followers            (streamer_id INT, date_scraped INT, value INT, PRIMARY KEY(streamer_id, date_scraped), FOREIGN KEY(streamer_id) REFERENCES streamers(streamer_id));",
     "CREATE TABLE IF NOT EXISTS total_views          (streamer_id INT, date_scraped INT, value INT, PRIMARY KEY(streamer_id, date_scraped), FOREIGN KEY(streamer_id) REFERENCES streamers(streamer_id));",
     "CREATE TABLE IF NOT EXISTS broadcaster_type     (streamer_id INT, date_scraped INT, value TEXT, PRIMARY KEY(streamer_id, date_scraped), FOREIGN KEY(streamer_id) REFERENCES streamers(streamer_id));",
