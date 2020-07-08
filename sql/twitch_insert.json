@@ -28,11 +28,11 @@
   ],
 
   "insert-total-views-for-streamer-twitch": [
-    "INSERT INTO total_views (streamer_id, date_scraped, value) VALUES (?, ?, ?);"
+    "INSERT OR REPLACE INTO total_views (streamer_id, date_scraped, value) VALUES (?, ?, ?);"
   ],
 
   "insert-broadcaster-type-for-streamer-twitch": [
-    "INSERT INTO broadcaster_type (streamer_id, date_scraped, value) VALUES (?, ?, ?);"
+    "INSERT OR REPLACE INTO broadcaster_type (streamer_id, date_scraped, value) VALUES (?, ?, ?);"
   ],
 
   "insert-followers-count-twitch": [
