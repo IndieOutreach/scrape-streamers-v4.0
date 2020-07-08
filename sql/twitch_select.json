@@ -24,5 +24,13 @@
 
   "get-inactive-streamer-ids": [
     "SELECT streamer_id FROM streamers GROUP BY streamer_id HAVING MAX(date_last_scraped) < {date} ORDER BY MAX(date_last_scraped) ASC;"
+  ],
+
+  "get-livestream-snapshot-ids-to-compress": [
+    "SELECT livestream_id FROM livestream_snapshots GROUP BY livestream_id HAVING MAX(date_scraped) < {date} ORDER BY MAX(date_scraped) DESC LIMIT {result_limit};"
+  ],
+
+  "get-snapshots-for-livestream": [
+    "SELECT * FROM livestream_snapshots WHERE livestream_id={livestream_id};"
   ]
 }

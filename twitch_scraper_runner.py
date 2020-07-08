@@ -27,19 +27,31 @@ from twitch_scraper import *
 
 worker_threads   = {}     # <- lookup table of {thread_id: thread}
 thread_status    = {}     # <- lookup table of {thread_id: status}, if status == 'end', then the thread is flagged to terminate
-__thread_id_livestreams = 'Scrape Livestreams'
-__thread_id_recordings  = 'Scrape Recordings'
-__thread_id_inactive    = 'Scrape Inactive'
-__thread_id_followers   = 'Scrape Followers'
+__thread_id_livestream_snapshots = 'Scrape Livestreams Snapshots'
+__thread_id_recordings           = 'Scrape Recordings'
+__thread_id_inactive             = 'Scrape Inactive'
+__thread_id_followers            = 'Scrape Followers'
+__thread_id_compress_livestreams = 'Compress Livestream Snapshots'
+
+__MAX_THREAD_ID_LENGTH = 0
+for id in [
+        __thread_id_inactive,
+        __thread_id_followers,
+        __thread_id_recordings,
+        __thread_id_livestream_snapshots,
+        __thread_id_compress_livestreams
+    ]:
+    __MAX_THREAD_ID_LENGTH = len(id) if (len(id) >  __MAX_THREAD_ID_LENGTH) else  __MAX_THREAD_ID_LENGTH
 
 
 # lookup table indicating how many 30 second sleep sessions a thread should take before starting work again
 __sleep_period = 30
 __sleep = {
-    __thread_id_livestreams: 2 * 15,   # <- run every 15 minutes
-    __thread_id_recordings:  2 * 5,    # <- run every 5 minutes
-    __thread_id_inactive:    2 * 15,   # <- run every 15 minutes,
-    __thread_id_followers:   2 * 5     # <- run every 5 minutes
+    __thread_id_livestream_snapshots: 2 * 15,   # <- run every 15 minutes
+    __thread_id_recordings          : 2 * 5,    # <- run every 5 minutes
+    __thread_id_inactive            : 2 * 15,   # <- run every 15 minutes,
+    __thread_id_followers           : 2 * 5,    # <- run every 5 minutes
+    __thread_id_compress_livestreams: 2 * 1     # <- run every minute
 }
 
 
@@ -72,7 +84,9 @@ def thread_scrape_procedure(thread_id, scraping_procedure):
 
 # prints a message with a standardized date-value formatting
 def print_from_thread(thread_id, message):
-    print('{} [ {:18} ] : {}'.format(datetime.datetime.now().time(), thread_id, message))
+    thread_id_length = '{:' + str(__MAX_THREAD_ID_LENGTH) +'}'
+    thread_id = thread_id_length.format(thread_id)
+    print(f'{datetime.datetime.now().time()} [ {thread_id} ] : { message}')
 
 
 # creates a new worker thread
@@ -81,12 +95,14 @@ def create_worker_thread(thread_id):
     # create the scraper for this thread
     twitch_scraper = TwitchScraper()
     procedure_to_run = False
-    if (thread_id == __thread_id_livestreams):
-        procedure_to_run = twitch_scraper.procedure_scrape_livestreams
+    if (thread_id == __thread_id_livestream_snapshots):
+        procedure_to_run = twitch_scraper.procedure_scrape_livestream_snapshots
     elif (thread_id == __thread_id_followers):
         procedure_to_run = twitch_scraper.procedure_scrape_followers
     elif (thread_id == __thread_id_inactive):
         procedure_to_run = twitch_scraper.procedure_scrape_inactive
+    elif (thread_id == __thread_id_compress_livestreams):
+        procedure_to_run = twitch_scraper.procedure_compress_livestreams
     else:
         print('Invalid thread ID found: ', thread_id)
         return
@@ -174,9 +190,10 @@ def run():
     twitch_db.create_tables()
 
     # start threads on scraping procedures
-    create_worker_thread(__thread_id_livestreams)
+    create_worker_thread(__thread_id_livestream_snapshots)
     create_worker_thread(__thread_id_followers)
     create_worker_thread(__thread_id_inactive)
+    create_worker_thread(__thread_id_compress_livestreams)
 
     # send message to developer telling them server has started
     message = "IndieOutreach Twitch Scraper started running at {} on {}".format(datetime.datetime.now().time(), datetime.date.today())
@@ -188,7 +205,14 @@ def run():
     signal.pause()
     return
 
+
+def test_run():
+    twitch_scraper = TwitchScraper()
+    twitch_scraper.procedure_scrape_inactive()
+    print('DONE')
+
 # Run --------------------------------------------------------------------------
 
 if (__name__ == '__main__'):
+    #test_run()
     run()

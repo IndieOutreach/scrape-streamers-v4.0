@@ -210,6 +210,7 @@ class TwitchDB():
         commands = __load_from_file({}, './sql/twitch_create.json')
         commands = __load_from_file(commands, './sql/twitch_insert.json')
         commands = __load_from_file(commands, './sql/twitch_select.json')
+        commands = __load_from_file(commands, './sql/twitch_delete.json')
         return commands
 
 
@@ -262,6 +263,14 @@ class TwitchDB():
     def insert_livestream_snapshot(self, conn, livestream):
         conn.execute(self.commands['insert-livestream-snapshot-twitch'], livestream.to_db_tuple())
         return
+
+
+    # inserts a livestream object into livestreams table
+    # NOTE: unlike other insert statements, the object passed into this function is already a tuple
+    def insert_livestream(self, conn, livestream_tuple):
+        conn.execute(self.commands['insert-livestream-twitch'], livestream_tuple)
+        return
+
 
     def insert_total_views_for_streamer(self, conn, streamer):
         conn.execute(self.commands['insert-total-views-for-streamer-twitch'], streamer.to_db_tuple('total_views'))
@@ -356,3 +365,44 @@ class TwitchDB():
         for row in conn.execute(select_command):
             ids.append(row[0])
         return ids
+
+
+    # returns a list of livestream_ids that are in livestream_snapshots and
+    # are ready to be compressed and moved to the livestreams table
+    def get_livestream_snapshot_ids_to_compress(self, conn, limit = 500):
+        ids = []
+        date_cutoff = int(time.time()) - (1 * 60 * 60 * 24 * 2) # <- 2 days ago
+        select_command = self.commands['get-livestream-snapshot-ids-to-compress']
+        select_command = select_command.replace('{date}', str(date_cutoff))
+        select_command = select_command.replace('{result_limit}', str(limit))
+        for row in conn.execute(select_command):
+            ids.append(row[0])
+        return ids
+
+    # return all livestream snapshots with given livestream ID
+    def get_all_livestream_snapshots_with_id(self, conn, id):
+        snapshots = []
+        select_command = self.commands['get-snapshots-for-livestream']
+        select_command = select_command.replace('{livestream_id}', str(id))
+        for row in conn.execute(select_command):
+            snapshots.append({
+                'livestream_id': row[0],
+                'streamer_id'  : row[1],
+                'game_id'      : row[2],
+                'viewers'      : row[3],
+                'date_started' : row[4],
+                'date_scraped' : row[5],
+                'tag_ids'      : json.loads(row[6]),
+                'language'     : row[7]
+            })
+        return snapshots
+
+
+    # Delete -------------------------------------------------------------------
+
+    # deletes all livestream_snapshots with the given livestream ID
+    def delete_livestream_snapshots(self, conn, livestream_id):
+        delete_command = self.commands['delete-livestream-snapshots-twitch']
+        livestream_id_tuple = (str(livestream_id), ) # <- to get sqlite to register it correctly
+        conn.execute(delete_command, livestream_id_tuple)
+        return

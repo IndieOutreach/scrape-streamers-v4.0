@@ -4,7 +4,7 @@
 
 #### Table: streamers
 Contains basic profile info about streamers
-  1. `streamer_id` - int (called `user_id` on Twitch)
+  1. `streamer_id` - int (called `user_id` on Twitch) [P]
   2. `login` - text
   3. `display_name` - text
   4. `description` - text
@@ -14,36 +14,49 @@ Contains basic profile info about streamers
 
 
 #### Table: followers
-  1. `streamer_id` - int
-  2. `date_scraped` - epoch int (seconds)
+  1. `streamer_id` - int [P, F]
+  2. `date_scraped` - epoch int (seconds) [P]
   3. `value` - int
 
 #### Table: total_views
-  1. `streamer_id` - int
-  2. `date_scraped` - epoch int (seconds)
+  1. `streamer_id` - int [P, F]
+  2. `date_scraped` - epoch int (seconds) [P]
   3. `value` - int
 
 
 #### Table: broadcaster_type
-  1. `streamer_id` - int
-  2. `date_scraped` - epoch int (seconds)
+  1. `streamer_id` - int [P, F]
+  2. `date_scraped` - epoch int (seconds) [P]
   3. `value` - int (0 if "", 1 if "affiliate", 2 if "partner")
 
 
 #### Table: livestream_snapshots
-  1. `livestream_id` - int
-  2. `streamer_id` - int
-  3. `game_id` - int
+  1. `livestream_id` - int [P]
+  2. `streamer_id` - int [F]
+  3. `game_id` - int [F]
   4. `viewers` - int
   5. `date_started` - epoch int (seconds)
   6. `date_scraped` - epoch int (seconds)
   7. `tag_ids` - text(JSON)
   8. `language` - text
 
+#### Table: livestreams
+  1. `livestream_id` - int [P]
+  2. `streamer_id` - int [F]
+  3. `game_id` - int [P, F]
+  4. `date_started` - epoch int (seconds) [P]
+  5. `date_ended` - epoch int (seconds)
+  6. `tag_ids` - text(JSON)
+  7. `language` - text
+  8. `max_viewers` - int
+  9. `min_viewers` - int
+  10. `average_viewers` - int
+  11. `viewer_counts` - text(JSON)
+
 #### Table: videos
-  1. `video_id` - int
-  2. `streamer_id` - int
-  3. `game_id` - int
+  1. `video_id` - int [P]
+  2. `streamer_id` - int [F]
+  3. `game_id` - int [F]
   4. `view_count` - int
   5. `video_type` - text ('upload', 'archive', or 'highlight')
   6. `date_created` - epoch int (seconds)
@@ -53,17 +66,17 @@ Contains basic profile info about streamers
   9. `language` - text
 
 #### Table: no_videos
-  1. `streamer_id` - int
+  1. `streamer_id` - int [P, F]
   2. `date_scraped` - epoch int (seconds)
 
 #### Table: games
-  1. `game_id` - int
+  1. `game_id` - int [P]
   2. `game_name` - text
   3. `box_art_url` - text
 
 #### Table: game_snapshots
-  1. `game_id` - int
-  2. `date_scraped` - epoch int (seconds)
+  1. `game_id` - int [P, F]
+  2. `date_scraped` - epoch int (seconds) [P]
   3. `num_streamers` - int
   4. `num_zero` - int
   5. `total_viewers` - int
@@ -74,7 +87,7 @@ Contains basic profile info about streamers
   10. `std_dev_viewers` - double
 
 #### Table: tags
-  1. `tag_id` - int
+  1. `tag_id` - int [P]
   2. `is_auto` - boolean
   3. `english_name` - text
   4. `localization_names` - text(JSON)
@@ -82,8 +95,8 @@ Contains basic profile info about streamers
   6. `localization_descriptions` - text(JSON)
 
 #### Table: logs
-  1. `log_name` - text
-  2. `date_started` - epoch int (seconds)
+  1. `log_name` - text [P]
+  2. `date_started` - epoch int (seconds) [P]
   3. `date_ended` - epoch int (seconds)
   4. `timelogs` - text(JSON)
   5. `stats` - text(JSON)

@@ -29,9 +29,11 @@ from stats_objects import *
 # Classes: Twitch<Objects>
 # ==============================================================================
 
-# TwitchLivestream -------------------------------------------------------------
+# TwitchLivestreamSnapshot -----------------------------------------------------
+# -> This represents a single snapshot of a livestream taken by the API
+# -> It will later be used and aggregated into a TwitchLivestream object
 
-class TwitchLivestream():
+class TwitchLivestreamSnapshot():
 
     def __init__(self, data, source):
         if (source == 'api/livestreams'):
@@ -75,9 +77,11 @@ class TwitchLivestream():
         )
 
 
-# TwitchLivestreams ------------------------------------------------------------
+# TwitchLivestreamSnapshots ----------------------------------------------------
+# -> This is a collection of TwitchLivestreamSnapshot objects
 
-class TwitchLivestreams():
+
+class TwitchLivestreamSnapshots():
 
     def __init__(self):
         self.livestreams = {}
@@ -153,7 +157,7 @@ class TwitchLivestreams():
     # Insert -------------------------------------------------------------------
 
     def add_from_api(self, obj):
-        livestream = TwitchLivestream(obj, 'api/livestreams')
+        livestream = TwitchLivestreamSnapshot(obj, 'api/livestreams')
         if (livestream.is_valid()):
             if (livestream.viewer_count > 0):
                 self.livestreams[livestream.id] = livestream
@@ -510,7 +514,7 @@ class TwitchScraper():
 
     # Procedure: Scrape Livestreams --------------------------------------------
 
-    def procedure_scrape_livestreams(self):
+    def procedure_scrape_livestream_snapshots(self):
 
         time_started = int(time.time())
         stats = {
@@ -538,7 +542,7 @@ class TwitchScraper():
         self.__print('\nScraping Data ----------------------------------------')
 
         # 2.a) Scrape for all livestreams
-        livestreams, cursor, timelogs = TwitchLivestreams(), False, TimeLogs(self.timelog_actions)
+        livestreams, cursor, timelogs = TwitchLivestreamSnapshots(), False, TimeLogs(self.timelog_actions)
         num_old_livestreams, page_num = 0, 0
         self.__print('Scraping Livestreams...')
         while True:
@@ -785,3 +789,121 @@ class TwitchScraper():
 
         self.__print('Scrape Followers Procedure complete!')
         return
+
+
+    # Procedure: Compress Livestreams ------------------------------------------
+
+    def procedure_compress_livestreams(self):
+
+        self.__print('Starting Compress Livestreams procedure!')
+        time_started = int(time.time())
+        stats = {'num_snapshots': 0, 'num_livestream_ids': 0, 'num_livestream_objs': 0}
+        timelogs = TimeLogs(self.timelog_actions)
+
+
+        # Phase 1: Get list of livestream_snapshots to be processed ------------
+
+        conn = self.db.get_connection()
+        livestream_snapshots = {}
+        for livestream_id in self.db.get_livestream_snapshot_ids_to_compress(conn, 5000):
+            snapshots = self.db.get_all_livestream_snapshots_with_id(conn, livestream_id)
+            livestream_snapshots[livestream_id] = snapshots
+            stats['num_snapshots'] += len(snapshots)
+        conn.close()
+
+
+        # Phase 2: Compress snapshots ------------------------------------------
+
+        compressed_livestreams = []
+        livestream_ids         = []
+        for id, snapshots in livestream_snapshots.items():
+            for compressed_obj in self.__compress_snapshots(snapshots):
+                db_obj = self.__compressed_livestream_to_db_tuple(compressed_obj)
+                compressed_livestreams.append(db_obj)
+            livestream_ids.append(id)
+
+        stats['num_livestream_ids']  = len(livestream_ids)
+        stats['num_livestream_objs'] = len(compressed_livestreams)
+
+        # Phase 3: Modify database (Delete/Insert) -----------------------------
+
+        conn = self.db.get_connection()
+        for db_tuple in compressed_livestreams:
+            self.db.insert_livestream(conn, db_tuple)
+        for livestream_id in livestream_ids:
+            self.db.delete_livestream_snapshots(conn, livestream_id)
+
+        # Phase 4: Save Logs to Database ---------------------------------------
+
+        self.__print('Inserting scraping logs into db...')
+        timelog_str = json.dumps(timelogs.get_stats_from_logs())
+        stats_str   = json.dumps(stats)
+        self.db.insert_logs(conn, 'compress-livestreams', time_started, timelog_str, stats_str)
+
+        conn.commit()
+        conn.close()
+        return
+
+
+    # given a list of snapshots from db.get_all_livestream_snapshots_with_id(),
+    # compresses snapshots into individual livestream objects based on (livestream_id, game_id, date_started)
+    # -> this means that if a streamer played games [A, B, A]
+    def __compress_snapshots(self, snapshots):
+
+        # 1) sort snapshots by date_scraped value
+        sorted_snapshots = sorted(snapshots, key=lambda k: k['date_scraped'])
+
+        # 2) Break snapshots list into sublists by game_id
+        sublists = []
+        current_game_id = None
+        for snapshot in sorted_snapshots:
+            if (current_game_id is None or snapshot['game_id'] != current_game_id):
+                current_game_id = snapshot['game_id']
+                sublists.append([])
+            sublists[-1].append(snapshot)
+
+        # 3) Compress each sublist
+        compressed_livestreams = []
+        for sublist in sublists:
+            id           = sublist[0]['livestream_id']
+            date_started = sublist[0]['date_scraped']
+            date_ended   = sublist[-1]['date_scraped']
+            min_views    = None
+            max_views    = None
+            views        = []
+            for snapshot in sublist:
+                views.append(snapshot['viewers'])
+                if (max_views is None or snapshot['viewers'] > max_views):
+                    max_views = snapshot['viewers']
+                if (min_views is None or snapshot['viewers'] < min_views):
+                    min_views = snapshot['viewers']
+
+            compressed_livestreams.append({
+                'livestream_id': sublist[0]['livestream_id'],
+                'streamer_id'  : sublist[0]['streamer_id'],
+                'game_id'      : sublist[0]['game_id'],
+                'date_started' : date_started,
+                'date_ended'   : date_ended,
+                'tag_ids'      : sublist[0]['tag_ids'],
+                'language'     : sublist[0]['language'],
+                'max_viewers'  : max_views,
+                'min_viewers'  : min_views,
+                'viewer_counts': views
+            })
+        return compressed_livestreams
+
+    # takes a dict representing a compressed livestream (from .__compress_snapshots())
+    # converts it into a tuple for inserting into the 'livestreams' table
+    def __compressed_livestream_to_db_tuple(self, c):
+        return (
+            c['livestream_id'],
+            c['streamer_id'],
+            c['game_id'],
+            c['date_started'],
+            c['date_ended'],
+            json.dumps(c['tag_ids']),
+            c['language'],
+            c['max_viewers'],
+            c['min_viewers'],
+            json.dumps(c['viewer_counts'])
+        )
