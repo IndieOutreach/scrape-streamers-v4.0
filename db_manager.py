@@ -415,3 +415,47 @@ class TwitchDB():
         livestream_id_tuple = (str(livestream_id), ) # <- to get sqlite to register it correctly
         conn.execute(delete_command, livestream_id_tuple)
         return
+
+
+# ==============================================================================
+# Class: CountLogDB
+# ==============================================================================
+# CountLogDB is a wrapper class for communicating with the count.db database
+# -> this database is used for storing COUNT(*) values for twitch.db tables
+
+class CountLogDB():
+    def __init__(self):
+        self.filepath = './data/countlog.db'
+        self.create_tables()
+        return
+
+    def get_connection(self):
+        return sqlite3.connect(self.filepath)
+
+    def create_tables(self):
+        conn = self.get_connection()
+        conn.execute('CREATE TABLE IF NOT EXISTS counts (table_name TEXT, value INT, date_scraped INT, PRIMARY KEY(table_name, date_scraped));')
+        conn.commit()
+        conn.close()
+        return
+
+    def get_most_recent_counts(self):
+        conn = self.get_connection()
+        tables = {}
+        for row in conn.execute('SELECT DISTINCT(table_name) FROM counts;'):
+            tables[row[0]] = []
+
+        for table_name in tables:
+            for count_val in conn.execute(f"SELECT value FROM counts WHERE table_name='{table_name}' ORDER BY value DESC LIMIT 10;"):
+                tables[table_name].append(count_val[0])
+
+        conn.close()
+        return tables
+
+    def insert_counts(self, counts):
+        conn = self.get_connection()
+        for table_name, count in counts.items():
+            tuple_to_insert = (table_name, count, int(time.time()))
+            conn.execute('INSERT INTO counts (table_name, value, date_scraped) VALUES (?, ?, ?);', tuple_to_insert)
+        conn.commit()
+        conn.close()
