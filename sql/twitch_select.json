@@ -32,5 +32,9 @@
 
   "get-snapshots-for-livestream": [
     "SELECT * FROM livestream_snapshots WHERE livestream_id={livestream_id};"
+  ],
+
+  "get-most-recent-logs-twitch": [
+    "SELECT log_name, MAX(date_ended) FROM logs GROUP BY log_name;"
   ]
 }

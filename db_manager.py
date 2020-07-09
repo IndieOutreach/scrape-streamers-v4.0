@@ -397,6 +397,15 @@ class TwitchDB():
             })
         return snapshots
 
+    # returns the most recent logs for each type of scraping procedure
+    # -> this lets us know when it was run last
+    def get_most_recent_logs(self, conn):
+        logs = {}
+        select_command = self.commands['get-most-recent-logs-twitch']
+        for row in conn.execute(select_command):
+            logs[row[0]] = row[1]
+        return logs
+
 
     # Delete -------------------------------------------------------------------
 
