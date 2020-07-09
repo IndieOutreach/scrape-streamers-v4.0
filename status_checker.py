@@ -10,9 +10,26 @@
 
 import sys
 import time
+import argparse
 
 from db_manager import *
 from twilio_sms import *
+
+
+# Constants --------------------------------------------------------------------
+
+sms = TwilioSMS()
+
+# Command line Arguments -------------------------------------------------------
+
+__twilio_description = """If the -t flag is activated, status updates will be sent to the admin via SMS.  """
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-t', '--twilio', dest='twilio', action='store_true', help=__twilio_description)
+args = parser.parse_args()
+if (args.twilio):
+    sms.set_mode(True)
+
 
 # Main -------------------------------------------------------------------------
 
@@ -32,11 +49,8 @@ def run():
 
     # only send a text if necessary
     if (len(needs_attention) > 0):
-        sms = TwilioSMS()
-        sms.set_mode(True)
         message = f"The following Twitch scraping procedures have not logged their results in the last 2 hours: {needs_attention}"
         sms.send(message)
-        print(message)
 
 # Run --------------------------------------------------------------------------
 
