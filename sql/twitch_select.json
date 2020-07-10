@@ -19,7 +19,7 @@
     "SELECT streamer_id FROM streamers WHERE streamer_id NOT IN (SELECT streamer_id FROM followers);"
   ],
   "get-streamer-ids-that-dont-have-followers-from-last-day-twitch": [
-    "SELECT streamer_id FROM followers GROUP BY streamer_id HAVING MAX(date_scraped) < {date} ORDER BY MAX(date_scraped) ASC;"
+    "SELECT DISTINCT(streamer_id) FROM followers GROUP BY streamer_id HAVING MAX(date_scraped) < {date} ORDER BY MAX(date_scraped) ASC;"
   ],
 
   "get-inactive-streamer-ids": [

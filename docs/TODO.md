@@ -1,0 +1,2 @@
+1. Add try catches to TwitchApi's .\__get() function to determine root of :
+  - `requests.exceptions.ConnectionError: HTTPSConnectionPool(host='api.twitch.tv', port=443): Max retries exceeded with url: /helix/users/follows?to_id=132191797 (Caused by NewConnectionError('<urllib3.connection.VerifiedHTTPSConnection object at 0x7f941d3c9550>: Failed to establish a new connection: [Errno 110] Connection timed out'))`
