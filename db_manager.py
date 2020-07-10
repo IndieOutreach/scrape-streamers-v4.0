@@ -452,6 +452,19 @@ class CountLogDB():
         conn.close()
         return tables
 
+    def get_all_counts_since(self, date_limit = 0):
+        conn = self.get_connection()
+        tables = {}
+        for row in conn.execute('SELECT * FROM counts WHERE date_scraped > ? ORDER BY date_scraped DESC;', (date_limit, )):
+            table_name   = row[0]
+            count        = row[1]
+            date_scraped = row[2]
+            if (table_name not in tables):
+                tables[table_name] = []
+            tables[table_name].append({'count': count, 'date_scraped': date_scraped})
+        conn.close()
+        return tables
+
     def insert_counts(self, counts):
         conn = self.get_connection()
         for table_name, count in counts.items():
