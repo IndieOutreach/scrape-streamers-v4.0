@@ -59,7 +59,6 @@ __sleep = {
 
 # for keeping track of process IDs so only 1 version of the scraper can ever run
 __pid_filepath = "./tmp/twitch_scraper.pid"
-
 sms = TwilioSMS()
 
 # Command Line Arguments -------------------------------------------------------
@@ -67,7 +66,9 @@ sms = TwilioSMS()
 # get command line arguments -> production mode
 parser = argparse.ArgumentParser()
 parser.add_argument('-t', '--twilio', dest='twilio', action='store_true', help='If true, server will send text messages to the number specified in credentials on scraper start and termination.')
+parser.add_argument('-s', '--stop',   dest='stop',   action='store_true', help='Use this flag if you want to terminate an already running instance of twitch_scraper_runner.py')
 args = parser.parse_args()
+
 if (args.twilio):
     sms.set_mode(True)
 
@@ -175,6 +176,21 @@ def check_if_program_already_running():
     return False
 
 
+# if twitch_scraper_runner.py is already running in another process, this function will kill it
+# -> used in conjunction with the --stop flag
+def stop_already_running_thread():
+    if (os.path.isfile(__pid_filepath)):
+        pid = None
+        with open(__pid_filepath) as f:
+            for line in f:
+                pid = int(line)
+        print(f"An instance of twitch_scraper_runner.py was found with pid: {pid}\nTerminating now...")
+        os.kill(pid, signal.SIGTERM)
+
+    else:
+        print('No pid found. twitch_scraper_runner.py is not currently running. ')
+    return
+
 # ==============================================================================
 # Main
 # ==============================================================================
@@ -182,7 +198,10 @@ def check_if_program_already_running():
 
 def run():
 
-
+    # if we are running with the --stop flag, do that instead
+    if (args.stop):
+        stop_already_running_thread()
+        sys.exit(0)
 
     # because this runs on a cron job, make sure two instances of the scraper can't be active at the same time
     if check_if_program_already_running():
