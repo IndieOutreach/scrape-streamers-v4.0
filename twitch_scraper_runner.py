@@ -62,6 +62,15 @@ __pid_filepath = "./tmp/twitch_scraper.pid"
 
 sms = TwilioSMS()
 
+# Command Line Arguments -------------------------------------------------------
+
+# get command line arguments -> production mode
+parser = argparse.ArgumentParser()
+parser.add_argument('-t', '--twilio', dest='twilio', action='store_true', help='If true, server will send text messages to the number specified in credentials on scraper start and termination.')
+args = parser.parse_args()
+if (args.twilio):
+    sms.set_mode(True)
+
 
 # ==============================================================================
 # Threads: Scraping Procedures
@@ -173,12 +182,7 @@ def check_if_program_already_running():
 
 def run():
 
-    # get command line arguments -> production mode
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-t', '--twilio', dest='twilio', action='store_true', help='If true, server will send text messages to the number specified in credentials on scraper start and termination.')
-    args = parser.parse_args()
-    if (args.twilio):
-        sms.set_mode(True)
+
 
     # because this runs on a cron job, make sure two instances of the scraper can't be active at the same time
     if check_if_program_already_running():

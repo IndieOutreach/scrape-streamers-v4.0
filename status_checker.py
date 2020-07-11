@@ -118,7 +118,7 @@ def run():
 # Run --------------------------------------------------------------------------
 
 if (__name__ == '__main__'):
-    while(True):
-        print('.')
-        run()
-        time.sleep(1 * 60 * 15) # <- 15 minutes
+    run()
+    #while(True):
+    #    print('.')
+    #    time.sleep(1 * 60 * 15) # <- 15 minutes
