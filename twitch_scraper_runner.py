@@ -178,7 +178,7 @@ def check_if_program_already_running():
 
 # if twitch_scraper_runner.py is already running in another process, this function will kill it
 # -> used in conjunction with the --stop flag
-def stop_already_running_thread():
+def stop_already_running_scraper():
     if (os.path.isfile(__pid_filepath)):
         pid = None
         with open(__pid_filepath) as f:
@@ -200,7 +200,7 @@ def run():
 
     # if we are running with the --stop flag, do that instead
     if (args.stop):
-        stop_already_running_thread()
+        stop_already_running_scraper()
         sys.exit(0)
 
     # because this runs on a cron job, make sure two instances of the scraper can't be active at the same time

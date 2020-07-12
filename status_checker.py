@@ -46,7 +46,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-t', '--twilio', dest='twilio', action='store_true', help=__twilio_description)
 args = parser.parse_args()
 if (args.twilio):
-    sms.set_mode(True)
+    #sms.set_mode(True)
+    print('sms currently hardcoded to not send')
 
 
 # Main -------------------------------------------------------------------------
