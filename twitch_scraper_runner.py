@@ -47,11 +47,11 @@ for id in [
 # lookup table indicating how many 30 second sleep sessions a thread should take before starting work again
 __sleep_period = 30
 __sleep = {
-    __thread_id_livestream_snapshots: 2 * 15,   # <- run every 15 minutes
-    __thread_id_recordings          : 2 * 5,    # <- run every 5 minutes
-    __thread_id_inactive            : 2 * 15,   # <- run every 15 minutes,
-    __thread_id_followers           : 2 * 5,    # <- run every 5 minutes
-    __thread_id_compress_livestreams: 2 * 1     # <- run every minute
+    __thread_id_livestream_snapshots: 2 * 15 * 4,    # <- run every 15 minutes  (original: 2 * 15)
+    __thread_id_recordings          : 2 * 5 * 12,    # <- run every 5 minutes   (original: 2 * 5)
+    __thread_id_inactive            : 2 * 15 * 4,    # <- run every 15 minutes, (original: 2 * 15)
+    __thread_id_followers           : 2 * 5 * 12,    # <- run every 5 minutes   (original: 2 * 5)
+    __thread_id_compress_livestreams: 2 * 1 * 60     # <- run every minute      (original: 2 * 1)
 }
 
 
@@ -225,7 +225,10 @@ def run():
     # set main thread to wait for termination
     signal.signal(signal.SIGINT, stop_scraper)
     signal.signal(signal.SIGTERM, stop_scraper)
-    signal.pause()
+    #signal.pause()
+    while(True):
+        print('.')
+        time.sleep(5)
     return
 
 
